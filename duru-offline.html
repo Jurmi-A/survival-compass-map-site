@@ -98,7 +98,7 @@
   const canvas = $('map'), mainCtx = canvas.getContext('2d');
   // The detailed map is rendered into baseCanvas; while a finger moves, only that image is moved or scaled.
   const baseCanvas = document.createElement('canvas'), baseCtx = baseCanvas.getContext('2d');
-  let ctx = mainCtx, baseView = null, interacting = false, settleTimer = 0;
+  let labelScale = 1, ctx = mainCtx, baseView = null, interacting = false, settleTimer = 0;
   const standalone = !!window.IS_STANDALONE || location.protocol === 'file:' || location.protocol === 'content:';
   const nativeApp = !!window.DURU_ANDROID;
   const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
@@ -222,7 +222,7 @@
       const styles=[[4,'#e6dcc0',.8,10],[3,'#e0d3a6',1,8],[2,'#ddd1aa',camera.z<7?.55:1.2,0],[1,'#c1b783',camera.z<7?.7:1.5,0],[0,'#d2a061',camera.z<7?.95:2.1,0]];
       ctx.lineJoin='round';ctx.lineCap='round';
       for(const [k,color,width,minZ] of styles){if(camera.z<minZ)continue;ctx.lineWidth=width*zf*(k>=3&&camera.z>=11?1.4:1);ctx.strokeStyle=color;ctx.beginPath();for(const r of roadClasses[k])if(roadVisible(r))linePath(r.xy);ctx.stroke();}
-      if(camera.z>=9){const maxK=camera.z>=11?4:camera.z>=10?3:2,s=256*2**camera.z;let count=0;const used=[];for(let k=0;k<=maxK&&count<=35;k++)for(const r of roadClasses[k]){if(count>35)break;if(!r.n||r.xy.length<8||!roadVisible(r))continue;const m=Math.floor(r.xy.length/4)*2,p=[(r.xy[m]-camera.x)*s+w/2,(r.xy[m+1]-camera.y)*s+h/2];if(p[0]<50||p[0]>w-50||p[1]<140||p[1]>h-160||used.some(a=>Math.hypot(a[0]-p[0],a[1]-p[1])<90))continue;roadLabels.push([r.n,p]);used.push(p);count++;}}
+      if(camera.z>=9){const maxK=camera.z>=11?4:camera.z>=10?3:2,s=256*2**camera.z;let count=0;const used=[];for(let k=0;k<=maxK&&count<=35*labelScale;k++)for(const r of roadClasses[k]){if(count>35*labelScale)break;if(!r.n||r.xy.length<8||!roadVisible(r))continue;const m=Math.floor(r.xy.length/4)*2,p=[(r.xy[m]-camera.x)*s+w/2,(r.xy[m+1]-camera.y)*s+h/2];if(p[0]<50||p[0]>w-50||p[1]<140||p[1]>h-160||used.some(a=>Math.hypot(a[0]-p[0],a[1]-p[1])<90))continue;roadLabels.push([r.n,p]);used.push(p);count++;}}
     }
     if($('showRail').checked&&camera.z>=7){
       ctx.lineJoin='round';ctx.lineCap='butt';const visible=railways.filter(roadVisible),detail=camera.z>=9;
@@ -245,12 +245,12 @@
       let count=0;
       for(const p of places){if(camera.z<p.minZ||!inView(p.xy))continue;const a=p.rank===0,pos=screen(p.xy),size=a?13:p.rank>=3?10:11,weight=a?'650':'500';if(camera.z<8&&!a&&boxes.some(q=>Math.hypot(q[0]-pos[0],q[1]-pos[1]+13)<60))continue;if(!fits(p.n,pos[0],pos[1]-13,size,weight))continue;
         ctx.beginPath();ctx.arc(pos[0],pos[1],a?3:2,0,Math.PI*2);ctx.fillStyle=a?'#3c665b':'#849684';ctx.fill();textLabel(p.n,pos[0],pos[1]-13,size,a?'#2e5146':p.rank>=3?'#6b7f72':'#5b7466',weight);
-        if(++count>140)break;
+        if(++count>140*labelScale)break;
       }
       if(camera.z<8.3) for(const r of regions){const p=screen(project(r[1],r[2])),text=r[0].replace('특별자치도',''),size=camera.z<6.2?11:13;if(fits(text,p[0],p[1],size,'600'))textLabel(text,p[0],p[1],size,'#879281','600');}
     }
     for(const [text,p] of roadLabels)if(fits(text,p[0],p[1],10,'500'))textLabel(text,p[0],p[1],10,'#887c58');
-    if(showFac&&camera.z>=11){let count=0;for(const f of visibleFac){if(f.kind==='entrance'||(f.kind!=='station'&&camera.z<13))continue;const pos=screen(f.xy);if(!fits(f.label,pos[0],pos[1]+16,10,'600'))continue;textLabel(f.label,pos[0],pos[1]+16,10,'#4d5a52','600');if(++count>60)break;}}
+    if(showFac&&camera.z>=11){let count=0;for(const f of visibleFac){if(f.kind==='entrance'||(f.kind!=='station'&&camera.z<13))continue;const pos=screen(f.xy);if(!fits(f.label,pos[0],pos[1]+16,10,'600'))continue;textLabel(f.label,pos[0],pos[1]+16,10,'#4d5a52','600');if(++count>60*labelScale)break;}}
     for(const overlay of overlays)overlay.drawBase?.({ctx,screen,project,camera,w,h});
     // Sea names are geographic labels, kept away from the mainland.
     if(camera.z<8){for(const t of [['서해',124.9,35.7],['동해',130.7,37.1],['남해',128,33.8]]){const p=screen(project(t[1],t[2]));ctx.font='12px system-ui';ctx.fillStyle='#87aaa2';ctx.textAlign='center';ctx.fillText(t[0],p[0],p[1]);}}
@@ -258,10 +258,12 @@
   function interact(){interacting=true;clearTimeout(settleTimer);settleTimer=setTimeout(()=>{interacting=false;requestDraw();},160);}
   function draw(){
     const key=[w,h,dpr,...['showRoads','showRegions','showLabels','showFacilities','showRail'].map(id=>$(id).checked)].join();
-    const s1=256*2**camera.z,stale=!baseView||baseView.key!==key||Math.abs((baseView.x-camera.x)*s1)>w*.6||Math.abs((baseView.y-camera.y)*s1)>h*.6||Math.abs(camera.z-baseView.z)>1;
-    if(!interacting||stale){if(baseCanvas.width!==canvas.width||baseCanvas.height!==canvas.height){baseCanvas.width=canvas.width;baseCanvas.height=canvas.height;}ctx=baseCtx;try{drawBase();}finally{ctx=mainCtx;}baseView={x:camera.x,y:camera.y,z:camera.z,key};}
+    // The cached map extends beyond the screen so dragging and pinching reveal real map, not blank edges.
+    const margin=Math.max(.15,Math.min(.5,(Math.sqrt(8e6/Math.max(1,canvas.width*canvas.height))-1)/2)),mx=Math.round(w*margin),my=Math.round(h*margin);
+    const s1=256*2**camera.z,stale=!baseView||baseView.key!==key||Math.abs((baseView.x-camera.x)*s1)>baseView.mx*.9||Math.abs((baseView.y-camera.y)*s1)>baseView.my*.9||Math.abs(camera.z-baseView.z)>1;
+    if(!interacting||stale){const bw=w+2*mx,bh=h+2*my,pw=Math.round(bw*dpr),ph=Math.round(bh*dpr);if(baseCanvas.width!==pw||baseCanvas.height!==ph){baseCanvas.width=pw;baseCanvas.height=ph;}const vw=w,vh=h;labelScale=(bw*bh)/(vw*vh);w=bw;h=bh;ctx=baseCtx;try{drawBase();}finally{ctx=mainCtx;w=vw;h=vh;}baseView={x:camera.x,y:camera.y,z:camera.z,key,mx,my};}
     ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#deebe7';ctx.fillRect(0,0,canvas.width,canvas.height);
-    const k=2**(camera.z-baseView.z);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.save();ctx.translate(w/2+(baseView.x-camera.x)*s1,h/2+(baseView.y-camera.y)*s1);ctx.scale(k,k);ctx.drawImage(baseCanvas,-w/2,-h/2,w,h);ctx.restore();
+    const k=2**(camera.z-baseView.z);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.save();ctx.translate(w/2+(baseView.x-camera.x)*s1,h/2+(baseView.y-camera.y)*s1);ctx.scale(k,k);ctx.drawImage(baseCanvas,-w/2-baseView.mx,-h/2-baseView.my,w+2*baseView.mx,h+2*baseView.my);ctx.restore();
     for(const overlay of overlays)overlay.draw?.({ctx,screen,project,camera,w,h});
     for(const pin of pins) drawMarker(pin,pin.kind==='caution'?'#a64332':pin.kind==='meeting'?'#5066a0':'#db804c',false);
     if(selected)drawMarker(selected,'#214f47',true);
@@ -322,7 +324,7 @@
   $('dataInfo').innerHTML=dataInfo();
   $('dataInfo').lastElementChild.id='connectionInfo';
   if(!standalone){
-    const apkLink=document.createElement('a');apkLink.id='downloadApk';apkLink.className='secondary-button wide';apkLink.href='./duru-android.apk';apkLink.download='생존나침반-1.4.2.apk';apkLink.textContent='안드로이드 앱 1.4.2 설치 파일 받기 · 약 4MB';
+    const apkLink=document.createElement('a');apkLink.id='downloadApk';apkLink.className='secondary-button wide';apkLink.href='./duru-android.apk';apkLink.download='생존나침반-1.4.3.apk';apkLink.textContent='안드로이드 앱 1.4.3 설치 파일 받기 · 약 4MB';
     const apkInfo=document.createElement('p');apkInfo.className='small-note';apkInfo.textContent='안드로이드 8 이상용 직접 설치 파일입니다. 지도 자료가 앱에 포함되어 설치 뒤에는 로그인과 인터넷 연결 없이 실행할 수 있습니다. 기존 내 장소·계획은 각각 백업 후 앱에서 가져오세요.';
     $('downloadMap').before(apkLink,apkInfo);
   }
