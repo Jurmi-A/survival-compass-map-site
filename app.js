@@ -26,7 +26,7 @@
   new MutationObserver(()=>{$('compactStatus').textContent=offlineReady?'오프라인 준비됨':'저장 미확인';}).observe($('statusPill'),{childList:true,subtree:true});
   $('routeOpen').onclick=()=>toast('도보 자료를 불러오지 못했습니다. 최신 지도 파일이나 앱을 다시 받아주세요.');
   $('compassOpen').onclick=()=>toast('나침반을 불러오지 못했습니다. 최신 지도 파일이나 앱을 다시 받아주세요.');
-  const shareNav=document.createElement('button');shareNav.id='navShare';shareNav.innerHTML='<span>⇄</span>위치 공유';$('navOffline').before(shareNav);
+  const shareNav=document.createElement('button');shareNav.id='navShare';shareNav.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></svg>위치 공유';$('navOffline').before(shareNav);
   shareNav.onclick=()=>{showHelp();$('offlineState').textContent='위치 공유 기능을 불러오지 못했습니다. 최신 지도 앱이나 지도 파일을 다시 받아주세요.';};
   function showOfflineFailure(message){offlineError=String(message).slice(0,700);updateOffline();for(const fail of offlineFailures)fail(Error(offlineError));}
   function waitForActive(reg){if(reg?.active)return Promise.resolve(reg);return new Promise((resolve,reject)=>{let worker;const done=(error)=>{clearTimeout(timer);offlineFailures.delete(fail);worker?.removeEventListener('statechange',inspect);reg?.removeEventListener('updatefound',inspect);error?reject(error):resolve(reg);};const fail=e=>done(e);const inspect=()=>{if(reg.active){done();return;}const next=reg.installing||reg.waiting;if(next&&next!==worker){worker?.removeEventListener('statechange',inspect);worker=next;worker.addEventListener('statechange',inspect);}if(worker?.state==='redundant')done(Error(offlineError||'지도 설치가 완료되지 않았습니다. 크롬에서 다시 열거나 HTML 파일을 저장하세요.'));};const timer=setTimeout(()=>done(Error(offlineError||'지도 설치가 오래 걸립니다. 연결을 확인하거나 HTML 파일을 저장하세요.')),120000);offlineFailures.add(fail);reg.addEventListener('updatefound',inspect);inspect();});}
@@ -232,7 +232,7 @@
   $('dataInfo').innerHTML=dataInfo();
   $('dataInfo').lastElementChild.id='connectionInfo';
   if(!standalone){
-    const apkLink=document.createElement('a');apkLink.id='downloadApk';apkLink.className='secondary-button wide';apkLink.href='./duru-android.apk';apkLink.download='생존나침반-1.4.3.apk';apkLink.textContent='안드로이드 앱 1.4.3 설치 파일 받기 · 약 4MB';
+    const apkLink=document.createElement('a');apkLink.id='downloadApk';apkLink.className='secondary-button wide';apkLink.href='./생존나침반-베타.apk';apkLink.download='생존나침반-1.5.0-베타.apk';apkLink.textContent='안드로이드 앱 1.5.0 베타 설치 파일 받기 · 약 4MB';
     const apkInfo=document.createElement('p');apkInfo.className='small-note';apkInfo.textContent='안드로이드 8 이상용 직접 설치 파일입니다. 지도 자료가 앱에 포함되어 설치 뒤에는 로그인과 인터넷 연결 없이 실행할 수 있습니다. 기존 내 장소·계획은 각각 백업 후 앱에서 가져오세요.';
     $('downloadMap').before(apkLink,apkInfo);
   }
