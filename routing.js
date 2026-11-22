@@ -23,7 +23,7 @@
     <p id="routeStorage" class="small-note"></p><section id="routeRecovery" hidden><button id="routeRawBackup" class="secondary-button wide">회피 구역 원문 백업</button><label class="sharing-toggle"><input id="routeRecoveryAgree" type="checkbox">원문을 보관했거나 읽을 수 없음을 확인했고, 기존 구역 없이 시작하는 데 동의합니다.</label><button id="routeRecover" class="secondary-button wide">이번 실행에서만 새로 시작</button></section></div>`;
   document.body.append(dialog);
   const button=$('routeOpen');
-  const status=text=>{$('routeStatus').textContent=text;};
+  const status=text=>{const el=$('routeStatus');el.textContent=text;if(dialog?.open)requestAnimationFrame(()=>el.scrollIntoView({block:'nearest'}));};
   function gpsAge(p){return window.DURU_MONOTONIC&&Number.isFinite(p.fixElapsedMs)?window.DURU_MONOTONIC()-p.fixElapsedMs:Date.now()-p.timestamp;}
   function freshGps(p){const age=gpsAge(p);return Number.isFinite(age)&&age>=0&&age<=300000&&Number.isFinite(p.accuracy)&&p.accuracy>=0&&p.accuracy<=40;}
   function ensureGraph(){if(!graph)graph=core.buildGraph(pack);return graph;}
@@ -190,7 +190,11 @@
   }catch(_){status('원문 백업을 요청하지 못했습니다. 기존 자료를 유지합니다.');}};
   $('routeRecover').onclick=()=>{if(!$('routeRecoveryAgree').checked||rawZones!==null&&!backupRequested){status('원문 백업과 복구 동의를 먼저 확인하세요.');return;}storageError='';sessionOnly=true;zones=[];result=null;resetGuide();render();api.redraw();status('기존 저장소를 보존하고 이번 실행에서만 시작했습니다. 기존 회피 구역은 적용되지 않습니다.');};
   // Extend place actions without replacing existing saving/sharing controls.
-  const placeObserver=new MutationObserver(()=>{if(!$('pinName')||$('routePlaceActions'))return;const row=document.createElement('div');row.id='routePlaceActions';row.className='action-row';row.innerHTML='<button id="routePlaceStart" class="secondary-button">도보 출발점</button><button id="routePlaceGoal" class="secondary-button">도보 목적지</button>';$('panelBody').append(row);$('routePlaceStart').onclick=()=>choose('start');$('routePlaceGoal').onclick=()=>choose('goal');});
+  const placeObserver=new MutationObserver(()=>{if(!$('pinName')||$('routePlaceActions'))return;const row=document.createElement('div');row.id='routePlaceActions';row.className='action-row';if(!inside(api.state.selected)){
+      // Outside the pilot area the buttons could only fail, so say why instead of offering them.
+      row.classList.add('route-place-outside');row.innerHTML='<p class="route-place-note">도보 길찾기는 서울역 주변 시범 지역(약 3×3.7km)에서만 됩니다. 이 위치는 지역 밖입니다.</p><button id="routePlaceRegion" class="secondary-button">시범 지역 보기</button>';
+      $('panelBody').append(row);$('routePlaceRegion').onclick=()=>api.focusPoint({lon:126.975,lat:37.5615},14);return;}
+    row.innerHTML='<button id="routePlaceStart" class="secondary-button">도보 출발점</button><button id="routePlaceGoal" class="secondary-button">도보 목적지</button>';$('panelBody').append(row);$('routePlaceStart').onclick=()=>choose('start');$('routePlaceGoal').onclick=()=>choose('goal');});
   placeObserver.observe($('panelBody'),{childList:true});
   api.addOverlay({drawBase({ctx,screen,project,camera}){
     if(!routeMode||!graph||camera.z<13)return;

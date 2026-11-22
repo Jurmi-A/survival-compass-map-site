@@ -149,3 +149,5 @@ button,a,input{outline-offset:3px}button:focus-visible,a:focus-visible,input:foc
 .heading-toggle.active svg path{fill-opacity:1}.heading-toggle.heading-waiting{color:#9a5b12;border-color:#e8cf9f;background:#fff8ec}
 .route-guide-facing{font-size:13px;font-weight:650;color:#1f5a7a}
 @media(prefers-reduced-motion:reduce){.heading-toggle svg{transition:none}}
+.route-place-outside{flex-wrap:wrap;align-items:center}
+.route-place-note{flex:1 1 100%;margin:0;font-size:13px;line-height:1.45;color:#5b6563;word-break:keep-all}
