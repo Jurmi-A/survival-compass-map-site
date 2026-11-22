@@ -43,7 +43,7 @@
   </div>
   <div id="layerPanel" class="layer-panel hidden"><strong>지도 표시</strong><label><input type="checkbox" id="showRoads" checked>주요 도로</label><label><input type="checkbox" id="showRegions" checked>시·도 경계</label><label><input type="checkbox" id="showLabels" checked>지명</label><label><input type="checkbox" id="showFacilities" checked>주요 시설</label><label><input type="checkbox" id="showRail" checked>철도·역·지하철 출구</label><small>시설: 병원·소방서·경찰·관공서·학교. 역·지하철 출입구는 OSM 위치이며 운영·출입 가능·대피시설 지정 여부를 확인하지 않았습니다. 점선 철도는 지하·터널 구간입니다. 서울역 주변 도보 시범 지역 외 골목길·건물은 포함되지 않습니다.</small></div>
   <button id="legendOpen" class="legend-trigger" aria-haspopup="dialog"><span aria-hidden="true">● ● ●</span> 점·기호 안내</button>
-  <div class="map-bottom"><div class="scale"><div id="scaleLine"></div><span id="scaleText"></span></div><div class="attribution">© OpenStreetMap contributors · Natural Earth<br>전국 개요 지도 · <button id="sources">자료 정보</button></div></div>
+  <div class="map-bottom"><div class="scale"><div id="scaleLine"></div><span id="scaleText"></span></div><div class="attribution"><span class="attr-osm">© OpenStreetMap contributors</span><span class="attr-extra"> · Natural Earth<br>전국 개요 지도</span><span aria-hidden="true"> · </span><button id="sources">자료 정보</button></div></div>
   <section id="bottomPanel" class="bottom-panel hidden" aria-label="장소 정보">
     <div class="sheet-grip"></div><div class="panel-header"><div><span class="eyebrow" id="panelEyebrow">장소</span><h2 id="panelTitle"></h2><p id="panelSubtitle"></p></div><button class="icon-button" id="closePanel" aria-label="장소 정보 닫기">×</button></div><div id="panelBody"></div>
   </section>

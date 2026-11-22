@@ -16,9 +16,11 @@
   let w=0,h=0,dpr=1,raf=0,selected=null,gps=null,offlineReady=false,installPrompt=null;
   const overlays=[];let gpsPending=false;let offlineError='',workerSetup=null;const offlineFailures=new Set();
   const MAX_ZOOM=17,appRoot=document.querySelector('.app');
-  let headerClosed=innerWidth<=720;
+  // Phones in landscape can be wider than 720px but are still short; they get the compact phone layout too.
+  const compactScreen=()=>innerWidth<=720||(innerHeight<=550&&innerWidth>innerHeight);
+  let headerClosed=compactScreen();
   try{const pref=localStorage.getItem('survival-map-header');if(pref==='open'||pref==='closed')headerClosed=pref==='closed';}catch(_){}
-  function headerLayout(){const mobile=innerWidth<=720;appRoot.style.setProperty('--map-top',mobile?(headerClosed?'76px':`${Math.ceil($('mapHeader').getBoundingClientRect().bottom+12)}px`):'40px');requestDraw();}
+  function headerLayout(){const mobile=compactScreen();appRoot.style.setProperty('--map-top',mobile?(headerClosed?'76px':`${Math.ceil($('mapHeader').getBoundingClientRect().bottom+12)}px`):'40px');requestDraw();}
   function setHeader(closed,remember=true){headerClosed=closed;$('mapHeader').classList.toggle('hidden',closed);$('mapHeader').inert=closed;$('headerExpand').classList.toggle('hidden',!closed);$('headerExpand').setAttribute('aria-expanded',String(!closed));if(closed){$('search').blur();$('searchResults').classList.add('hidden');$('search').setAttribute('aria-expanded','false');}if(remember)try{localStorage.setItem('survival-map-header',closed?'closed':'open');}catch(_){}headerLayout();}
   $('headerExpand').onclick=()=>{setHeader(false);$('search').focus();};
   $('headerCollapse').onclick=()=>{setHeader(true);$('headerExpand').focus();};
@@ -90,7 +92,7 @@
   function at(x,y) { const s=256*2**camera.z; return unproject(camera.x+(x-w/2)/s,camera.y+(y-h/2)/s); }
   function constrainCamera(){
     if(!w||!h)return;
-    const s=256*2**camera.z,mobile=innerWidth<=720;
+    const s=256*2**camera.z,mobile=compactScreen();
     const pad={left:mobile?24:Math.min(headerClosed?24:380,w*.35),right:24,top:Math.min(mobile?(headerClosed?80:190):80,h*.3),bottom:Math.min(110,h*.22)};
     const nw=project(124.6,38.8),se=project(132.2,32.8);
     for(const [axis,size,start,end,lo,hi] of [['x',w,pad.left,pad.right,nw[0],se[0]],['y',h,pad.top,pad.bottom,nw[1],se[1]]]){
@@ -181,9 +183,9 @@
   function drawMarker(p,color,active){const xy=screen(project(p.lon,p.lat));ctx.save();ctx.translate(...xy);if(active){ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.fillStyle='rgba(33,79,71,.13)';ctx.fill();}ctx.beginPath();ctx.moveTo(0,1);ctx.bezierCurveTo(-19,-17,-10,-30,0,-30);ctx.bezierCurveTo(10,-30,19,-17,0,1);ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.8;ctx.stroke();ctx.beginPath();ctx.arc(0,-19,3,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.restore();}
   function updateScale(){const lonlat=at(w/2,h/2),mpp=156543.03392*Math.cos(lonlat[1]*Math.PI/180)/2**camera.z;const raw=mpp*75,base=10**Math.floor(Math.log10(raw)),n=[1,2,5,10].filter(v=>v*base<=raw).pop()*base;$('scaleLine').style.width=`${n/mpp}px`;$('scaleText').textContent=n>=1000?`${n/1000} km`:`${n} m`;}
   function resize(){const rect=canvas.getBoundingClientRect();w=rect.width;h=rect.height;dpr=document.body.classList.contains('low-power')?1:Math.min(devicePixelRatio||1,2);canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);requestDraw();}
-  function fit(){const mobile=innerWidth<=720;const pad={left:mobile?32:headerClosed?32:400,right:mobile?45:100,top:mobile?(headerClosed?80:180):80,bottom:mobile?160:120};const a=project(124.75,32.95),b=project(132.05,38.65);const aw=Math.max(150,w-pad.left-pad.right),ah=Math.max(200,h-pad.top-pad.bottom);camera.z=clamp(Math.log2(Math.min(aw/Math.abs(a[0]-b[0]),ah/Math.abs(a[1]-b[1]))/256),5,9);const s=256*2**camera.z;camera.x=(a[0]+b[0])/2-(pad.left-pad.right)/2/s;camera.y=(a[1]+b[1])/2-(pad.top-pad.bottom)/2/s;requestDraw();}
+  function fit(){const mobile=compactScreen();const pad={left:mobile?32:headerClosed?32:400,right:mobile?45:100,top:mobile?(headerClosed?80:180):80,bottom:mobile?160:120};const a=project(124.75,32.95),b=project(132.05,38.65);const aw=Math.max(150,w-pad.left-pad.right),ah=Math.max(200,h-pad.top-pad.bottom);camera.z=clamp(Math.log2(Math.min(aw/Math.abs(a[0]-b[0]),ah/Math.abs(a[1]-b[1]))/256),5,9);const s=256*2**camera.z;camera.x=(a[0]+b[0])/2-(pad.left-pad.right)/2/s;camera.y=(a[1]+b[1])/2-(pad.top-pad.bottom)/2/s;requestDraw();}
   function zoom(delta,x=w/2,y=h/2){const before=at(x,y);camera.z=clamp(camera.z+delta,5,MAX_ZOOM);const after=at(x,y),bp=project(...before),ap=project(...after);camera.x+=bp[0]-ap[0];camera.y+=bp[1]-ap[1];requestDraw();}
-  function fly(p,z=9){z=clamp(z,5,MAX_ZOOM);const xy=project(p.lon,p.lat);camera.x=xy[0];camera.y=xy[1];camera.z=z;const s=256*2**z;if(innerWidth>720&&!headerClosed)camera.x-=170/s;else camera.y+=40/s;requestDraw();}
+  function fly(p,z=9){z=clamp(z,5,MAX_ZOOM);const xy=project(p.lon,p.lat);camera.x=xy[0];camera.y=xy[1];camera.z=z;const s=256*2**z;if(!compactScreen()&&!headerClosed)camera.x-=170/s;else camera.y+=40/s;requestDraw();}
   function toast(text){$('toast').textContent=text;$('toast').classList.remove('hidden');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').classList.add('hidden'),3500);}
   function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function isSaved(p){return pins.some(q=>Math.abs(q.lat-p.lat)<.0001&&Math.abs(q.lon-p.lon)<.0001);}
