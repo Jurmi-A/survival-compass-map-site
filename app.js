@@ -234,7 +234,7 @@
   $('dataInfo').innerHTML=dataInfo();
   $('dataInfo').lastElementChild.id='connectionInfo';
   if(!standalone){
-    const apkLink=document.createElement('a');apkLink.id='downloadApk';apkLink.className='secondary-button wide';apkLink.href='./생존나침반-베타.apk';apkLink.download='생존나침반-1.5.0-베타.apk';apkLink.textContent='안드로이드 앱 1.5.0 베타 설치 파일 받기 · 약 4MB';
+    const apkLink=document.createElement('a');apkLink.id='downloadApk';apkLink.className='secondary-button wide';apkLink.href='./생존나침반-베타.apk';apkLink.download='생존나침반-1.5.2-베타.apk';apkLink.textContent='안드로이드 앱 1.5.2 베타 설치 파일 받기 · 약 4MB';
     const apkInfo=document.createElement('p');apkInfo.className='small-note';apkInfo.textContent='안드로이드 8 이상용 직접 설치 파일입니다. 지도 자료가 앱에 포함되어 설치 뒤에는 로그인과 인터넷 연결 없이 실행할 수 있습니다. 기존 내 장소·계획은 각각 백업 후 앱에서 가져오세요.';
     $('downloadMap').before(apkLink,apkInfo);
   }

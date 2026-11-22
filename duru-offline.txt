@@ -127,6 +127,39 @@ button,a,input{outline-offset:3px}button:focus-visible,a:focus-visible,input:foc
  .map-bottom{right:calc(var(--edge) + 150px)}
  .app:has(#mapHeader:not(.hidden)) .map-caution{display:none}
 }
+/* Walking guidance card (display only). Replaces the scope note and GPS strip while a route is shown. */
+.route-guide{position:absolute;z-index:8;left:385px;top:54px;width:min(420px,calc(100% - 470px));padding:10px 10px 8px 14px;background:#fff;border:1px solid #d8e4df;border-left:4px solid #286b9c;border-radius:14px;box-shadow:0 4px 18px #163a3018;color:#173c34}
+.route-guide[hidden]{display:none}
+.route-guide-top{display:flex;align-items:flex-start;gap:6px}
+.route-guide-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding-top:4px}
+.route-guide-main strong{font-size:16px;line-height:1.35;word-break:keep-all}
+.route-guide-main span{font-size:12.5px;line-height:1.5;color:#46625a;word-break:keep-all}
+.route-guide-actions{display:flex;gap:4px;flex-shrink:0}
+.route-guide-actions .icon-button{width:44px;height:44px;min-width:44px;box-shadow:none;border:1px solid #e1e9e6;font-size:20px}
+.route-guide-actions svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.route-guide-off{border-left-color:#c0582f}.route-guide-off .route-guide-main strong{color:#8a3a1c}
+.route-guide-steps{margin:8px 0 2px;padding:6px 0 0 20px;border-top:1px solid #e6ede9;max-height:34vh;overflow:auto;font-size:13px;line-height:1.7;color:#35524b}
+.route-guide-steps li{padding:2px 0}.route-guide-steps li span{color:#5d746d}.route-guide-steps li.done{color:#8a9893}.route-guide-steps li.current{font-weight:700;color:#14514a}
+.route-guide-note{margin:4px 0 0;font-size:11px;line-height:1.5;color:#55706a}
+.app:has(#routeGuide:not([hidden])) .map-caution,.app:has(#routeGuide:not([hidden])) .gps-banner{display:none}
+@media(max-width:720px),(max-height:550px) and (orientation:landscape){
+ .route-guide{left:var(--edge);top:var(--map-top,76px);width:calc(100% - 2*var(--edge) - 52px)}
+ .app:has(#mapHeader:not(.hidden)) .route-guide{width:calc(100% - 132px)}
+ .route-guide-main strong{font-size:15px}
+ .route-guide{max-height:calc(100dvh - var(--map-top,76px) - 92px - env(safe-area-inset-bottom));overflow:auto}
+ .route-guide-steps{max-height:none}
+}
+@media(max-width:359px){.route-guide-actions{gap:2px}.route-guide{padding-left:10px}.route-guide-main strong{font-size:14px}}
+@media(max-height:550px) and (orientation:landscape){
+ .app:has(#mapHeader) .route-guide{top:62px;width:min(380px,calc(100% - 200px))}
+ .app:has(#mapHeader) .route-guide{max-height:calc(100dvh - 62px - 70px - env(safe-area-inset-bottom))}
+}
+@media(max-width:420px){.route-guide-top{flex-direction:column;gap:4px}.route-guide-actions{align-self:flex-end}}
+/* Direction toggle: the arrow turns with the phone; amber while waiting for a usable reading. */
+.heading-toggle svg{transition:transform .15s linear}.heading-toggle svg path{fill:currentColor;fill-opacity:.18}
+.heading-toggle.active svg path{fill-opacity:1}.heading-toggle.heading-waiting{color:#9a5b12;border-color:#e8cf9f;background:#fff8ec}
+.route-guide-facing{font-size:13px;font-weight:650;color:#1f5a7a}
+@media(prefers-reduced-motion:reduce){.heading-toggle svg{transition:none}}
 </style>
 </head>
 <body>
@@ -407,7 +440,7 @@ button,a,input{outline-offset:3px}button:focus-visible,a:focus-visible,input:foc
   $('dataInfo').innerHTML=dataInfo();
   $('dataInfo').lastElementChild.id='connectionInfo';
   if(!standalone){
-    const apkLink=document.createElement('a');apkLink.id='downloadApk';apkLink.className='secondary-button wide';apkLink.href='./생존나침반-베타.apk';apkLink.download='생존나침반-1.5.0-베타.apk';apkLink.textContent='안드로이드 앱 1.5.0 베타 설치 파일 받기 · 약 4MB';
+    const apkLink=document.createElement('a');apkLink.id='downloadApk';apkLink.className='secondary-button wide';apkLink.href='./생존나침반-베타.apk';apkLink.download='생존나침반-1.5.2-베타.apk';apkLink.textContent='안드로이드 앱 1.5.2 베타 설치 파일 받기 · 약 4MB';
     const apkInfo=document.createElement('p');apkInfo.className='small-note';apkInfo.textContent='안드로이드 8 이상용 직접 설치 파일입니다. 지도 자료가 앱에 포함되어 설치 뒤에는 로그인과 인터넷 연결 없이 실행할 수 있습니다. 기존 내 장소·계획은 각각 백업 후 앱에서 가져오세요.';
     $('downloadMap').before(apkLink,apkInfo);
   }
@@ -981,13 +1014,114 @@ window.DURU_ROUTING_CORE={buildGraph,findRoute,distance,intersectsZone,snapPoint
   function freshGps(p){const age=gpsAge(p);return Number.isFinite(age)&&age>=0&&age<=300000&&Number.isFinite(p.accuracy)&&p.accuracy>=0&&p.accuracy<=40;}
   function ensureGraph(){if(!graph)graph=core.buildGraph(pack);return graph;}
   function inside(p){const b=pack.bounds;return p&&p.lon>=b[0]&&p.lon<=b[2]&&p.lat>=b[1]&&p.lat<=b[3];}
+  // Display-only walking guidance: steps derived from the computed route, and progress recalculated only
+  // when the user presses the location button. No continuous tracking, sound, or vibration.
+  const wayTags=new Map();for(const w of pack.ways||[])wayTags.set(w.id,w.tags||{});
+  let guide=null,progress=null,progressFix=null,guideDismissed=false;
+  const guideCard=document.createElement('section');guideCard.id='routeGuide';guideCard.className='route-guide';guideCard.hidden=true;guideCard.setAttribute('aria-label','도보 경로 안내');
+  guideCard.innerHTML=`<div class="route-guide-top"><div class="route-guide-main"><strong id="routeGuideNext" role="status"></strong><span id="routeGuideSub"></span><span id="routeGuideFacing" class="route-guide-facing" hidden></span></div>
+    <div class="route-guide-actions"><button id="routeGuideLocate" class="icon-button" aria-label="내 위치로 진행 상황 확인">${$('locate').innerHTML}</button><button id="routeGuideList" class="icon-button" aria-label="단계별 안내 목록" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button><button id="routeGuideClose" class="icon-button" aria-label="안내 닫기">×</button></div></div>
+    <ol id="routeGuideSteps" class="route-guide-steps" hidden></ol><p class="route-guide-note">참고 경로 · 현장 통행·안전 미확인 · 위치 버튼을 누를 때만 갱신</p>`;
+  document.querySelector('.app').append(guideCard);
+  function bearing(a,b){const r=Math.PI/180,y=Math.sin((b.lon-a.lon)*r)*Math.cos(b.lat*r),x=Math.cos(a.lat*r)*Math.sin(b.lat*r)-Math.sin(a.lat*r)*Math.cos(b.lat*r)*Math.cos((b.lon-a.lon)*r);return (Math.atan2(y,x)/r+360)%360;}
+  function kindOf(t){if(t.highway==='steps')return '계단';if(t.footway==='crossing'||t.highway==='crossing')return '횡단보도';if(['footway','pedestrian','path'].includes(t.highway))return '보행로';return '길';}
+  function meters(m){return m<1000?`${Math.max(5,Math.round(m/5)*5)}m`:`${(m/1000).toFixed(1)}km`;}
+  function turnWord(d){if(d===null)return '출발';const a=Math.abs(d);if(a<35)return '직진';if(a>150)return '되돌아가기';return d>0?(a>110?'오른쪽으로 크게':'오른쪽으로'):(a>110?'왼쪽으로 크게':'왼쪽으로');}
+  function whereOf(l){return l.key==='계단'?'계단':l.key==='횡단보도'?'횡단보도 건너기':l.name||(l.kind==='보행로'?'보행로':'길');}
+  // Legs break at a turn of 35° or more, a street-name change, stairs, or a crossing; tiny wiggles (<6 m) never count as turns.
+  function buildGuide(r){
+    const pts=r.points,segs=[];let total=0;
+    for(let i=1;i<pts.length;i++){const len=core.distance(pts[i-1],pts[i]);if(len<=0)continue;const t=wayTags.get(r.wayIds[i-1])||{};segs.push({a:pts[i-1],b:pts[i],len,from:total,bear:bearing(pts[i-1],pts[i]),name:t['name:ko']||t.name||'',kind:kindOf(t)});total+=len;}
+    const legs=[];
+    for(const s of segs){const leg=legs.at(-1),key=s.kind==='계단'||s.kind==='횡단보도'?s.kind:'길';
+      const turn=leg?((s.bear-leg.endBear+540)%360)-180:null;
+      if(!leg||key!==leg.key||(s.len>=6&&(s.name!==leg.name||Math.abs(turn)>=35)))legs.push({key,name:s.name,kind:s.kind,from:s.from,len:s.len,turn,startBear:s.bear,endBear:s.bear});
+      else{leg.len+=s.len;if(s.len>=6)leg.endBear=s.bear;}}
+    // Clean-up: short jogs (<20 m, e.g. crossing a side road) fold into the next leg, keeping that leg's main
+    // direction; turns are then recomputed, and consecutive legs on the same street in the same direction merge.
+    const L=legs.map(l=>({...l}));const diff=(a,b)=>((a-b+540)%360)-180,where=l=>whereOf(l);
+    for(let i=0;i<L.length;){const l=L[i];if(L.length>1&&l.len<20&&l.key==='길'){
+      if(i+1<L.length&&L[i+1].key==='길'){L[i+1].from=l.from;L[i+1].len+=l.len;L.splice(i,1);continue;}
+      if(i>0&&L[i-1].key==='길'){L[i-1].len+=l.len;L[i-1].endBear=l.endBear;L.splice(i,1);continue;}}i++;}
+    for(let i=0;i<L.length;i++)L[i].turn=i?diff(L[i].startBear,L[i-1].endBear):null;
+    const merged=[];for(const l of L){const p=merged.at(-1);if(p&&where(p)===where(l)&&Math.abs(l.turn)<35){p.len+=l.len;p.endBear=l.endBear;}else merged.push(l);}
+    return segs.length?{total,segs,legs:merged.map(l=>({...l,word:turnWord(l.turn),where:whereOf(l)}))}:null;
+  }
+  function projectOnRoute(p){let best=null;const kx=Math.cos(p.lat*Math.PI/180)*111320,ky=110540;
+    for(const s of guide.segs){const ax=(s.a.lon-p.lon)*kx,ay=(s.a.lat-p.lat)*ky,dx=(s.b.lon-s.a.lon)*kx,dy=(s.b.lat-s.a.lat)*ky,L=dx*dx+dy*dy,t=L?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/L)):0,d=Math.hypot(ax+t*dx,ay+t*dy);
+      if(!best||d<best.d)best={d,along:s.from+t*s.len,point:{lat:s.a.lat+(s.b.lat-s.a.lat)*t,lon:s.a.lon+(s.b.lon-s.a.lon)*t}};}
+    return best;}
+  function updateProgress(){
+    if(!guide)return;const g=api.state.gps;if(!g)return;
+    progressFix=g;
+    const age=gpsAge(g);
+    if(!freshGps(g)){progress={stale:true,age,accuracy:g.accuracy};renderGuide();api.redraw();return;}
+    // The regular locate button zooms out to a city view; while guiding, stay zoomed in on the walker instead.
+    if(!guideCard.hidden){const z=Math.max(15,api.state.camera.z);setTimeout(()=>api.focusPoint({lat:g.lat,lon:g.lon},z),0);}
+    const p=projectOnRoute(g),off=p.d>Math.max(30,g.accuracy+10);let idx=0;for(let i=0;i<guide.legs.length;i++)if(guide.legs[i].from<=p.along+1)idx=i;
+    progress={...p,off,idx,age,accuracy:g.accuracy};renderGuide();api.redraw();
+  }
+  function renderProgressText(){
+    const L=guide.legs,next=$('routeGuideNext'),sub=$('routeGuideSub'),gpsText=p=>`GPS ${Math.max(0,Math.round(p.age/1000))}초 전 ±${Math.round(p.accuracy)}m`;
+    let primary,detail;
+    guideCard.classList.toggle('route-guide-off',!!progress?.off);
+    if(!progress){primary=`${L[0].word} · ${L[0].where} ${meters(L[0].len)}`;detail=`총 ${meters(guide.total)} · ${L.length}단계 · 위치 버튼으로 진행 확인`;}
+    else if(progress.stale){primary='진행 상황을 계산하지 않았습니다';detail='GPS가 오래됐거나 오차가 큽니다. 위치 버튼으로 다시 확인하세요.';}
+    else if(progress.off){primary=`경로에서 약 ${meters(progress.d)} 벗어남`;detail=`통행 가능한 길을 현장에서 확인하세요 · ${gpsText(progress)}`;}
+    else{const left=guide.total-progress.along,n=L[progress.idx+1];
+      primary=left<15?'목적지 부근입니다 · 주변을 직접 확인하세요':n?`${meters(n.from-progress.along)} 뒤 ${n.word} · ${n.where}`:`목적지까지 ${meters(left)} · ${L[progress.idx].where}`;
+      detail=`남은 거리 약 ${meters(left)} · ${gpsText(progress)}`;}
+    if(next.textContent!==primary)next.textContent=primary;
+    if(sub.textContent!==detail)sub.textContent=detail;
+  }
+  function renderGuide(){
+    const show=!!guide&&result?.status==='found'&&!guideDismissed&&!dialog.open;guideCard.hidden=!show;if(!show)return;
+    renderProgressText();
+    renderFacing();
+    $('routeGuideSteps').innerHTML=guide.legs.map((l,i)=>{const cls=progress&&!progress.stale&&!progress.off?(i<progress.idx?'done':i===progress.idx?'current':''):'';return `<li class="${cls}"><b>${esc(l.word)}</b> ${esc(l.where)} <span>${meters(l.len)}</span></li>`;}).join('')+'<li><b>도착</b> 선택한 목적지 쪽 도로 지점</li>';
+  }
+  function refreshProgressAge(){
+    if(!progressFix||progress?.stale)return;
+    const age=gpsAge(progressFix);
+    if(!Number.isFinite(age)||age<0||age>300000){
+      progress={stale:true,age,accuracy:progressFix.accuracy};
+      renderGuide();api.redraw();
+    }else{
+      progress.age=age;
+      if(!guideCard.hidden)renderProgressText();
+    }
+  }
+  // With the direction cone on, compare where the phone points with where the route goes from the last on-route fix.
+  function routeBearingAt(along){const S=guide.segs;let i=S.findIndex(s=>along<s.from+s.len);if(i<0)i=S.length-1;if(S[i].from+S[i].len-along<8&&i+1<S.length)i++;return S[i].bear;}
+  function renderFacing(){
+    const el=$('routeGuideFacing'),h=window.DURU_HEADING?.state;
+    const usable=!guideCard.hidden&&guide&&progressFix&&freshGps(progressFix)&&progress&&!progress.stale&&!progress.off&&guide.total-progress.along>=15&&h?.on;
+    if(!usable){el.hidden=true;return;}
+    el.hidden=false;
+    if(h.value===null){el.textContent='보는 방향 확인 중 · 폰을 평평하게 잡아주세요';return;}
+    const rel=((routeBearingAt(progress.along)-h.value+540)%360)-180,a=Math.abs(rel),side=rel>0?'오른쪽':'왼쪽';
+    const where=a<=25?'정면':a<=70?`${side} 앞`:a<=115?side:a<=160?`${side} 뒤`:'뒤쪽';
+    const reference=h.reference==='magnetic'?'자북, 진북 보정 없음':'브라우저 센서';
+    const text=`경로 방향: ${where} · ${reference}`;
+    if(el.textContent!==text)el.textContent=text;
+    el.dataset.rel=String(Math.round(rel));
+  }
+  window.addEventListener('duru-heading',renderFacing);
+  $('routeGuideLocate').onclick=()=>$('locate').click();
+  $('routeGuideList').onclick=()=>{const list=$('routeGuideSteps'),open=list.hidden;list.hidden=!open;$('routeGuideList').setAttribute('aria-expanded',String(open));};
+  $('routeGuideClose').onclick=()=>{guideDismissed=true;renderGuide();api.redraw();};
+  window.addEventListener('duru-position',updateProgress);
+  setInterval(refreshProgressAge,1000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshProgressAge();});
+  dialog.addEventListener('close',()=>{refreshProgressAge();renderGuide();});
+  function resetGuide(){guide=result?.status==='found'&&result.points?.length>1?buildGuide(result):null;progress=null;progressFix=null;guideDismissed=false;$('routeGuideSteps').hidden=true;$('routeGuideList').setAttribute('aria-expanded','false');renderGuide();}
   function validZones(value){
     if(!Array.isArray(value)||value.length>30)throw Error('회피 구역 자료를 읽을 수 없습니다. 기존 자료 보호를 위해 길찾기를 잠갔습니다.');
     for(const z of value){if(!z||z.source!=='manual'||typeof z.id!=='string'||!Number.isFinite(z.observedAt))throw Error('회피 구역 자료 형식 오류');core.intersectsZone(z,z,z);}
     return value;
   }
   try{rawZones=localStorage.getItem(KEY);zones=validZones(JSON.parse(rawZones||'[]'));}catch(e){storageError=e.message;}
-  function persist(next){try{if(!sessionOnly)localStorage.setItem(KEY,JSON.stringify(next));zones=next;result=null;render();api.redraw();return true;}catch(_){status('회피 구역을 저장하지 못했습니다. 기존 구역을 유지합니다.');return false;}}
+  function persist(next){try{if(!sessionOnly)localStorage.setItem(KEY,JSON.stringify(next));zones=next;result=null;resetGuide();render();api.redraw();return true;}catch(_){status('회피 구역을 저장하지 못했습니다. 기존 구역을 유지합니다.');return false;}}
   let candidate=null;
   function render(){
     const label=p=>p?`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)} · 선택점에서 도로까지 ${Math.round(p.offsetMeters)}m (연결 미확인)`:'미지정';
@@ -1014,7 +1148,7 @@ window.DURU_ROUTING_CORE={buildGraph,findRoute,distance,intersectsZone,snapPoint
     $('routeCandidate').hidden=false;status('후보 도로 지점을 확인한 뒤 사용을 눌러주세요.');
   }
   $('routeSetStart').onclick=()=>choose('start');$('routeSetGoal').onclick=()=>choose('goal');
-  $('routeAccept').onclick=()=>{if(!candidate)return;if(candidate.node.gps&&!freshGps(candidate.node.gps)){status('GPS 후보가 오래됐습니다. 새로 수신하거나 직접 지정하세요.');return;}if(candidate.which==='start')start=candidate.node;else goal=candidate.node;candidate=null;result=null;$('routeCandidate').hidden=true;render();api.redraw();status('도로 지점을 지정했습니다. 출발점과 목적지를 지정한 뒤 계산하세요.');};
+  $('routeAccept').onclick=()=>{if(!candidate)return;if(candidate.node.gps&&!freshGps(candidate.node.gps)){status('GPS 후보가 오래됐습니다. 새로 수신하거나 직접 지정하세요.');return;}if(candidate.which==='start')start=candidate.node;else goal=candidate.node;candidate=null;result=null;resetGuide();$('routeCandidate').hidden=true;render();api.redraw();status('도로 지점을 지정했습니다. 출발점과 목적지를 지정한 뒤 계산하세요.');};
   $('routeGps').onclick=()=>{const gps=api.state.gps;if(!gps){status('GPS 수신 위치가 없습니다. 지도 화면의 위치 버튼으로 먼저 수신하세요.');return;}
     const age=gpsAge(gps);
     if(!freshGps(gps)){status('GPS가 5분보다 오래됐거나 오차가 40m를 넘습니다. 새로 수신하거나 지도에서 직접 선택하세요.');return;}
@@ -1022,15 +1156,15 @@ window.DURU_ROUTING_CORE={buildGraph,findRoute,distance,intersectsZone,snapPoint
   };
   $('routeCalculate').onclick=()=>{
     if(storageError||!start||!goal)return;
-    if(start.gps&&!freshGps(start.gps)){result=null;api.redraw();status('GPS 출발점이 오래됐습니다. 새로 수신하거나 지도에서 직접 지정하세요.');render();return;}
-    result=null;status('경로 계산 중…');api.redraw();
+    if(start.gps&&!freshGps(start.gps)){result=null;resetGuide();api.redraw();status('GPS 출발점이 오래됐습니다. 새로 수신하거나 지도에서 직접 지정하세요.');render();return;}
+    result=null;resetGuide();status('경로 계산 중…');api.redraw();
     setTimeout(()=>{try{result=core.routeFromSnaps(ensureGraph(),start,goal,{zones,maxMs:1200,maxVisited:50000});
       const messages={no_path:'조건을 만족하는 경로를 찾지 못했습니다. 통행 가능한 다른 길이 없다는 뜻은 아닙니다.',outside_data:'시범 지역 자료 밖입니다.',blocked_selected_location:'선택한 원래 위치가 회피 구역 안에 있습니다.',blocked_endpoint:'출발점 또는 목적지가 회피 구역 안에 있습니다.',unsupported_data:'미지원 제한 또는 불완전한 도로 자료로 경로를 제공할 수 없습니다.',limit_exceeded:'계산 한도를 초과했습니다. 더 가까운 지점으로 나누어 선택하세요.'};
       status(result.status==='found'?`도로 구간 약 ${Math.round(result.meters)}m · ${result.hasSteps?'계단 포함 · ':''}현장 통행·안전 미확인. 선택점과 도로 사이 ${Math.round(start.offsetMeters)}m / ${Math.round(goal.offsetMeters)}m는 경로에 포함되지 않으며 접근 확인이 필요합니다.`:messages[result.status]||'경로를 계산하지 못했습니다.');
-    }catch(_){result=null;status('경로 자료를 처리하지 못했습니다.');}render();api.redraw();},30);
+    }catch(_){result=null;status('경로 자료를 처리하지 못했습니다.');}resetGuide();render();api.redraw();},30);
   };
-  $('routeView').onclick=()=>{if(result?.status!=='found')return;dialog.close();api.focusPoint(start,14);api.toast('파란 선은 참고 경로입니다. 현장 통제와 통행 상태를 확인하세요.');};
-  $('routeClear').onclick=()=>{start=null;goal=null;result=null;candidate=null;$('routeCandidate').hidden=true;status('경로를 지웠습니다.');render();api.redraw();};
+  $('routeView').onclick=()=>{if(result?.status!=='found')return;dialog.close();renderGuide();api.focusPoint(start,14);api.toast('파란 선은 참고 경로입니다. 위쪽 안내 카드의 위치 버튼으로 진행 상황을 확인하세요.');};
+  $('routeClear').onclick=()=>{start=null;goal=null;result=null;resetGuide();candidate=null;$('routeCandidate').hidden=true;status('경로를 지웠습니다.');render();api.redraw();};
   $('routeAddZone').onclick=()=>{if(storageError)return;const p=api.state.selected;if(!inside(p)){status('시범 지역 안에서 지도를 눌러 회피할 위치를 선택하세요.');return;}if(zones.length>=30){status('회피 구역은 30개까지 저장할 수 있습니다.');return;}
     const z={id:crypto.randomUUID(),lat:p.lat,lon:p.lon,radiusMeters:Number($('routeRadius').value),source:'manual',observedAt:Date.now()};
     if(persist([...zones,z]))status('직접 지정한 회피 구역을 저장했습니다. 경로를 다시 계산하세요.');
@@ -1040,7 +1174,7 @@ window.DURU_ROUTING_CORE={buildGraph,findRoute,distance,intersectsZone,snapPoint
     else{const url=URL.createObjectURL(new Blob([text],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='회피구역-원문.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),15000);}
     backupRequested=true;status('원문 저장을 요청했습니다. 파일을 보관했는지 확인한 뒤 복구 동의를 선택하세요.');
   }catch(_){status('원문 백업을 요청하지 못했습니다. 기존 자료를 유지합니다.');}};
-  $('routeRecover').onclick=()=>{if(!$('routeRecoveryAgree').checked||rawZones!==null&&!backupRequested){status('원문 백업과 복구 동의를 먼저 확인하세요.');return;}storageError='';sessionOnly=true;zones=[];result=null;render();api.redraw();status('기존 저장소를 보존하고 이번 실행에서만 시작했습니다. 기존 회피 구역은 적용되지 않습니다.');};
+  $('routeRecover').onclick=()=>{if(!$('routeRecoveryAgree').checked||rawZones!==null&&!backupRequested){status('원문 백업과 복구 동의를 먼저 확인하세요.');return;}storageError='';sessionOnly=true;zones=[];result=null;resetGuide();render();api.redraw();status('기존 저장소를 보존하고 이번 실행에서만 시작했습니다. 기존 회피 구역은 적용되지 않습니다.');};
   // Extend place actions without replacing existing saving/sharing controls.
   const placeObserver=new MutationObserver(()=>{if(!$('pinName')||$('routePlaceActions'))return;const row=document.createElement('div');row.id='routePlaceActions';row.className='action-row';row.innerHTML='<button id="routePlaceStart" class="secondary-button">도보 출발점</button><button id="routePlaceGoal" class="secondary-button">도보 목적지</button>';$('panelBody').append(row);$('routePlaceStart').onclick=()=>choose('start');$('routePlaceGoal').onclick=()=>choose('goal');});
   placeObserver.observe($('panelBody'),{childList:true});
@@ -1053,11 +1187,11 @@ window.DURU_ROUTING_CORE={buildGraph,findRoute,distance,intersectsZone,snapPoint
     const b=pack.bounds, nw=xy({lon:b[0],lat:b[3]}),se=xy({lon:b[2],lat:b[1]});
     if(camera.z>=11){ctx.strokeStyle='#587d91';ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.strokeRect(nw[0],nw[1],se[0]-nw[0],se[1]-nw[1]);ctx.setLineDash([]);}
     for(const z of zones){const p=xy(z),east=xy({...z,lon:z.lon+z.radiusMeters/(111320*Math.cos(z.lat*Math.PI/180))});ctx.beginPath();ctx.arc(...p,Math.abs(east[0]-p[0]),0,Math.PI*2);ctx.fillStyle='#b45b3833';ctx.strokeStyle='#a34e32';ctx.lineWidth=2;ctx.fill();ctx.stroke();}
-    if(result?.status==='found'){ctx.beginPath();for(const [i,point] of result.points.entries()){const p=xy(point);i?ctx.lineTo(...p):ctx.moveTo(...p);}ctx.strokeStyle='#fff';ctx.lineWidth=8;ctx.stroke();ctx.strokeStyle='#286b9c';ctx.lineWidth=4;ctx.stroke();}
+    if(result?.status==='found'){ctx.beginPath();for(const [i,point] of result.points.entries()){const p=xy(point);i?ctx.lineTo(...p):ctx.moveTo(...p);}ctx.strokeStyle='#fff';ctx.lineWidth=8;ctx.stroke();ctx.strokeStyle='#286b9c';ctx.lineWidth=4;ctx.stroke();if(guide&&progress&&!progress.stale&&!progress.off){ctx.beginPath();ctx.moveTo(...xy(guide.segs[0].a));for(const sg of guide.segs){if(sg.from+sg.len<=progress.along)ctx.lineTo(...xy(sg.b));else{ctx.lineTo(...xy(progress.point));break;}}ctx.strokeStyle='#9aa8a4';ctx.lineWidth=4;ctx.stroke();}}
     for(const [p,label] of [[start,'출'],[goal,'도']])if(p){const s=xy(p);ctx.beginPath();ctx.arc(...s,11,0,Math.PI*2);ctx.fillStyle='#286b9c';ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,...s);}ctx.restore();
   }});
   render();
-  window.DURU_ROUTING={open,choose,get state(){return {start,goal,result,zones:zones.map(z=>({...z})),issues:graph?.issues??[],graphLoaded:!!graph};}};
+  window.DURU_ROUTING={open,choose,get state(){return {start,goal,result,guide:guide&&{total:guide.total,legs:guide.legs.map(l=>({word:l.word,where:l.where,from:l.from,len:l.len}))},progress,zones:zones.map(z=>({...z})),issues:graph?.issues??[],graphLoaded:!!graph};}};
 })();
 </script>
 <script>(() => {
@@ -1072,64 +1206,146 @@ window.DURU_ROUTING_CORE={buildGraph,findRoute,distance,intersectsZone,snapPoint
     <p class="small-note">빨간 바늘은 센서가 가리키는 북쪽입니다. 앱에서는 자북을 사용하며 진북 보정은 하지 않습니다. 지도 위쪽(진북)과 차이가 날 수 있습니다. GPS와 이동 방향은 사용하지 않습니다.</p>
     <details><summary>측정이 흔들리거나 안 될 때</summary><ul class="compass-notes"><li>자석 케이스·스피커·차량·철제 구조물에서 떨어져 다시 확인하세요.</li><li>휴대폰을 평평하게 두고 잠시 기다리세요. 보정 방법은 기기 제조사 안내를 따르세요.</li><li>센서의 정상 표시도 자기 간섭이나 오차가 없다는 보장은 아닙니다. 주변 표지와 대조하세요.</li><li>브라우저에서는 북쪽 기준 방향 센서가 제공돼야 합니다. 지원하지 않으면 안드로이드 앱을 이용하세요.</li><li>화면을 닫거나 앱을 벗어나면 측정을 멈춥니다. 다시 켜서 새 값을 받으세요.</li></ul></details></div>`;
   document.body.append(dialog);
-  let generation=0,running=false,cleanup=null,lastReading=0,timeout=null,reference='magnetic';
   const now=()=>performance.now();
   const names={waiting:'센서 측정을 기다립니다. 휴대폰을 평평하게 잡아주세요.',unavailable:'북쪽을 읽을 센서가 없거나 사용할 수 없습니다. 브라우저라면 안드로이드 앱에서 확인하세요.',unstable:'자기장 또는 센서 정확도가 불안정합니다. 금속·자석에서 떨어져 다시 확인하세요.',tilted:'휴대폰을 화면이 위로 향하게 평평하게 잡아주세요.',stale:'새 방향 값이 오지 않습니다. 이전 방향은 숨겼습니다.',paused:'화면을 벗어나 측정을 중지했습니다. 다시 켜주세요.',stopped:'나침반을 껐습니다.',denied:'방향 센서 권한이 허용되지 않았습니다.',portrait:'브라우저에서는 휴대폰을 세로 화면으로 돌려 평평하게 잡아주세요.'};
+  const terminalStatus=new Set(['paused','unavailable','denied','stopped']);
+  const northReference=ref=>ref==='magnetic'?'자북 기준':'브라우저 북 기준';
+
+  // ---- Shared sensor: one session serves every user (compass dialog, map direction cone). ----
+  // The Android bridge supports a single compass session, so screens must never start their own.
+  const subscribers=new Set();let sensorCleanup=null,sensorStarting=false,sensorReference='magnetic';
+  function emit(sample){for(const fn of [...subscribers])fn(sample,sensorReference);}
+  function stopSensor(){const fn=sensorCleanup;sensorCleanup=null;try{fn?.();}catch(_){}}
+  function startSensor(){
+    if(sensorCleanup||sensorStarting)return;
+    if(window.DURU_START_COMPASS){
+      sensorReference='magnetic';
+      // A bridge failure can call back before the subscription has returned its cleanup function.
+      let active=true;
+      const release=window.DURU_START_COMPASS(sample=>queueMicrotask(()=>{if(active)emit(sample);}));
+      sensorCleanup=()=>{active=false;release();};
+      return;
+    }
+    sensorReference='browser';
+    if(!window.isSecureContext||!window.DeviceOrientationEvent){setTimeout(()=>emit({status:'unavailable'}),0);return;}
+    const listen=()=>{
+      const onOrientation=e=>{
+        // Browsers without a sensor send events with no values; leave them to the "unavailable" timeout instead of reporting a tilt.
+        if(e.alpha==null&&e.beta==null&&e.gamma==null&&e.webkitCompassHeading==null)return;
+        const screenAngle=screen.orientation?.angle??window.orientation??0;
+        if(screenAngle!==0){emit({status:'portrait'});return;}
+        if(!Number.isFinite(e.beta)||!Number.isFinite(e.gamma)||Math.abs(e.beta)>20||Math.abs(e.gamma)>20){emit({status:'tilted'});return;}
+        let heading=null;
+        if(typeof e.webkitCompassHeading==='number'){
+          if(!Number.isFinite(e.webkitCompassHeading)||e.webkitCompassHeading<0||e.webkitCompassHeading>=360||!Number.isFinite(e.webkitCompassAccuracy)||e.webkitCompassAccuracy<0||e.webkitCompassAccuracy>30){emit({status:'unstable'});return;}
+          heading=e.webkitCompassHeading;
+        }
+        else if(e.absolute===true&&typeof e.alpha==='number'&&Number.isFinite(e.alpha))heading=(360-e.alpha)%360;
+        if(heading!==null)emit({status:'reading',heading});
+      };
+      // Relative alpha is intentionally never treated as north.
+      window.addEventListener('deviceorientationabsolute',onOrientation);window.addEventListener('deviceorientation',onOrientation);
+      sensorCleanup=()=>{window.removeEventListener('deviceorientationabsolute',onOrientation);window.removeEventListener('deviceorientation',onOrientation);};
+    };
+    if(typeof DeviceOrientationEvent.requestPermission!=='function'){listen();return;}
+    sensorStarting=true;
+    DeviceOrientationEvent.requestPermission().then(r=>{sensorStarting=false;if(!subscribers.size)return;if(r!=='granted'){emit({status:'denied'});return;}listen();},()=>{sensorStarting=false;emit({status:'denied'});});
+  }
+  function subscribe(fn){subscribers.add(fn);startSensor();return ()=>{subscribers.delete(fn);if(!subscribers.size)stopSensor();};}
+  // Same acceptance rules everywhere: magnetic readings need medium accuracy and must be under 2 s old.
+  function check(sample,reference){
+    const valid=sample?.status==='reading'&&typeof sample.heading==='number'&&Number.isFinite(sample.heading)&&sample.heading>=0&&sample.heading<360;
+    if(!valid)return {ok:false,status:sample?.status||'unavailable'};
+    if(reference==='magnetic'&&(!Number.isInteger(sample.accuracy)||sample.accuracy<2))return {ok:false,status:'unstable'};
+    if(reference==='magnetic'&&window.DURU_MONOTONIC){const age=window.DURU_MONOTONIC()-sample.observedElapsedMs;if(!Number.isFinite(sample.observedElapsedMs)||!Number.isFinite(age)||age<0||age>2000)return {ok:false,status:'stale'};}
+    return {ok:true,heading:sample.heading,accuracy:sample.accuracy,status:'reading'};
+  }
+
+  // ---- Compass dialog (unchanged behaviour) ----
+  let generation=0,running=false,cleanup=null,lastReading=0,timeout=null,reference='magnetic';
   function statusText(text){if($('compassStatus').textContent!==text)$('compassStatus').textContent=text;}
   function clear(status){$('compassRose').hidden=true;$('compassValue').textContent='—';$('compassDial').setAttribute('aria-label','유효한 방향 측정 없음');statusText(names[status]||names.unavailable);}
   function stop(status='stopped'){
     generation++;running=false;clearTimeout(timeout);timeout=null;const fn=cleanup;cleanup=null;try{fn?.();}catch(_){}
     $('compassStart').disabled=false;$('compassStop').disabled=true;lastReading=0;clear(status);
   }
-  function reading(sample,gen){
+  function reading(sample,gen,ref){
     if(gen!==generation||!running||document.hidden)return;
-    const valid=sample?.status==='reading'&&typeof sample.heading==='number'&&Number.isFinite(sample.heading)&&sample.heading>=0&&sample.heading<360;
-    if(!valid){lastReading=0;clear(sample?.status);if(['paused','unavailable','denied','stopped'].includes(sample?.status))stop(sample.status);return;}
-    if(reference==='magnetic'&&(!Number.isInteger(sample.accuracy)||sample.accuracy<2)){clear('unstable');lastReading=0;return;}
-    if(reference==='magnetic'&&window.DURU_MONOTONIC){const age=window.DURU_MONOTONIC()-sample.observedElapsedMs;if(!Number.isFinite(sample.observedElapsedMs)||!Number.isFinite(age)||age<0||age>2000){clear('stale');lastReading=0;return;}}
-    lastReading=now();const angle=sample.heading;
+    reference=ref;const r=check(sample,ref);
+    if(!r.ok){lastReading=0;clear(r.status);if(terminalStatus.has(sample?.status))stop(sample.status);return;}
+    lastReading=now();const angle=r.heading;
     const dir=['북','북동','동','남동','남','남서','서','북서'][Math.round(angle/45)%8];
     $('compassRose').hidden=false;$('compassRose').style.transform=`rotate(${-angle}deg)`;
     $('compassValue').textContent=`${Math.round(angle)%360}° · ${dir}`;
-    $('compassReference').textContent=reference==='magnetic'?'휴대폰 위쪽 · 자북 기준 (진북 보정 안 함)':'휴대폰 위쪽 · 브라우저 북 기준 (정확도·보정값 모름)';
+    $('compassReference').textContent=ref==='magnetic'?'휴대폰 위쪽 · 자북 기준 (진북 보정 안 함)':'휴대폰 위쪽 · 브라우저 북 기준 (정확도·보정값 모름)';
     $('compassDial').setAttribute('aria-label',`센서 북쪽 기준 ${Math.round(angle)%360}도 ${dir}`);
-    statusText(reference==='magnetic'?(sample.accuracy===2?'측정 중 · 센서 정확도 보통. 주변 표지와 대조하세요.':'측정 중 · 자기 간섭·현장 오차가 있을 수 있습니다.'):'측정 중 · 브라우저가 제공한 북쪽 기준. 정확도는 확인되지 않았습니다.');
+    statusText(ref==='magnetic'?(r.accuracy===2?'측정 중 · 센서 정확도 보통. 주변 표지와 대조하세요.':'측정 중 · 자기 간섭·현장 오차가 있을 수 있습니다.'):'측정 중 · 브라우저가 제공한 북쪽 기준. 정확도는 확인되지 않았습니다.');
   }
-  async function start(){
+  function start(){
     stop();running=true;const gen=generation;lastReading=0;clear('waiting');$('compassStart').disabled=true;$('compassStop').disabled=false;
     timeout=setTimeout(()=>{if(running&&gen===generation&&!lastReading)stop('unavailable');},10000);
-    if(window.DURU_START_COMPASS){reference='magnetic';cleanup=window.DURU_START_COMPASS(sample=>reading(sample,gen));if(!running){cleanup?.();cleanup=null;}return;}
-    reference='browser';
-    if(!window.isSecureContext||!window.DeviceOrientationEvent){stop('unavailable');return;}
-    try{
-      if(typeof DeviceOrientationEvent.requestPermission==='function'&&await DeviceOrientationEvent.requestPermission()!=='granted'){if(gen===generation)stop('denied');return;}
-    }catch(_){if(gen===generation)stop('denied');return;}
-    if(gen!==generation||!running)return;
-    const onOrientation=e=>{
-      // Browsers without a sensor send events with no values; leave them to the 10-second "unavailable" timeout instead of reporting a tilt.
-      if(e.alpha==null&&e.beta==null&&e.gamma==null&&e.webkitCompassHeading==null)return;
-      const screenAngle=screen.orientation?.angle??window.orientation??0;
-      if(screenAngle!==0){reading({status:'portrait'},gen);return;}
-      if(!Number.isFinite(e.beta)||!Number.isFinite(e.gamma)||Math.abs(e.beta)>20||Math.abs(e.gamma)>20){reading({status:'tilted'},gen);return;}
-      let heading=null;
-      if(typeof e.webkitCompassHeading==='number'){
-        if(!Number.isFinite(e.webkitCompassHeading)||e.webkitCompassHeading<0||e.webkitCompassHeading>=360||!Number.isFinite(e.webkitCompassAccuracy)||e.webkitCompassAccuracy<0||e.webkitCompassAccuracy>30){reading({status:'unstable'},gen);return;}
-        heading=e.webkitCompassHeading;
-      }
-      else if(e.absolute===true&&typeof e.alpha==='number'&&Number.isFinite(e.alpha))heading=(360-e.alpha)%360;
-      if(heading!==null)reading({status:'reading',heading},gen);
-    };
-    // Relative alpha is intentionally never treated as north.
-    window.addEventListener('deviceorientationabsolute',onOrientation);window.addEventListener('deviceorientation',onOrientation);
-    cleanup=()=>{window.removeEventListener('deviceorientationabsolute',onOrientation);window.removeEventListener('deviceorientation',onOrientation);};
+    cleanup=subscribe((sample,ref)=>reading(sample,gen,ref));
   }
   $('compassOpen').onclick=()=>{if(!dialog.open)dialog.showModal();};
   $('compassClose').onclick=()=>dialog.close();dialog.addEventListener('close',()=>stop());
   dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});
   $('compassStart').onclick=start;$('compassStop').onclick=()=>stop();
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)stop('paused');});
-  window.addEventListener('pagehide',()=>stop('paused'));
-  setInterval(()=>{if(running&&lastReading&&now()-lastReading>2000){lastReading=0;clear('stale');}},500);
+
+  // ---- Map direction: a cone on the position dot showing where the top of the phone points. ----
+  // The map stays north-up. The sensor runs only while this is switched on and the page is visible.
+  let headingOn=false,headingUnsub=null,headingTimer=0,lastDraw=0;
+  let heading={value:null,status:'off',at:0,reference:'magnetic'};
+  const hbtn=document.createElement('button');hbtn.id='headingToggle';hbtn.className='icon-button heading-toggle';hbtn.type='button';
+  hbtn.setAttribute('aria-pressed','false');hbtn.setAttribute('aria-label','내가 보는 방향 표시');hbtn.title='보는 방향 표시';
+  hbtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l5.5 15.5L12 15.8 6.5 19z"/></svg>';
+  $('locate').after(hbtn);
+  function publish(){window.dispatchEvent(new CustomEvent('duru-heading',{detail:{...heading,on:headingOn}}));const t=now();if(t-lastDraw>90){lastDraw=t;api.redraw();}}
+  function paintButton(){
+    hbtn.classList.toggle('active',headingOn&&heading.value!==null);hbtn.classList.toggle('heading-waiting',headingOn&&heading.value===null);
+    hbtn.setAttribute('aria-pressed',String(headingOn));
+    const svg=hbtn.querySelector('svg');svg.style.transform=headingOn&&heading.value!==null?`rotate(${heading.value}deg)`:'';
+    hbtn.title=!headingOn?'보는 방향 표시':heading.value!==null?`보는 방향 ${Math.round(heading.value)%360}° (${northReference(heading.reference)}) · 누르면 끔`:`방향 확인 중: ${names[heading.status]||'센서를 기다립니다.'}`;
+  }
+  function onSample(sample,ref){
+    const r=check(sample,ref);
+    if(r.ok){clearTimeout(headingTimer);heading={value:r.heading,status:'reading',at:now(),reference:ref};}
+    else{
+      if(terminalStatus.has(sample?.status)){
+        setHeading(false);
+        if(sample.status==='unavailable'||sample.status==='denied')api.toast(names[sample.status]);
+        return;
+      }
+      heading={value:null,status:r.status,at:now(),reference:ref};
+    }
+    paintButton();publish();
+  }
+  function setHeading(on){
+    if(on===headingOn)return;headingOn=on;clearTimeout(headingTimer);
+    if(on){
+      const ref=window.DURU_START_COMPASS?'magnetic':'browser';
+      heading={value:null,status:'waiting',at:now(),reference:ref};headingUnsub=subscribe(onSample);
+      headingTimer=setTimeout(()=>{if(headingOn&&heading.value===null){const message=names[heading.status]||names.unavailable;setHeading(false);api.toast(message);}},10000);
+      api.toast(api.state.gps?`보는 방향을 위치 점에 표시합니다 · ${northReference(ref)}, 현장과 대조하세요`:'버튼 화살표가 보는 방향입니다 · 위치 버튼으로 내 위치를 확인하면 지도에도 표시됩니다');}
+    else{const fn=headingUnsub;headingUnsub=null;try{fn?.();}catch(_){}heading={value:null,status:'off',at:0,reference:'magnetic'};}
+    paintButton();publish();api.redraw();
+  }
+  hbtn.onclick=()=>setHeading(!headingOn);
+  api.addOverlay({draw({ctx,screen,project}){
+    const g=api.state.gps;if(!headingOn||heading.value===null||!g)return;
+    const age=window.DURU_MONOTONIC&&Number.isFinite(g.fixElapsedMs)?window.DURU_MONOTONIC()-g.fixElapsedMs:Date.now()-g.timestamp;
+    const p=screen(project(g.lon,g.lat)),old=!Number.isFinite(age)||age<0||age>120000,a=(heading.value-90)*Math.PI/180,spread=32*Math.PI/180,r=78;
+    const grad=ctx.createRadialGradient(p[0],p[1],6,p[0],p[1],r);grad.addColorStop(0,old?'rgba(124,133,135,.45)':'rgba(40,107,156,.5)');grad.addColorStop(1,'rgba(40,107,156,0)');
+    ctx.save();ctx.beginPath();ctx.moveTo(p[0],p[1]);ctx.arc(p[0],p[1],r,a-spread,a+spread);ctx.closePath();ctx.fillStyle=grad;ctx.fill();ctx.restore();
+  }});
+  window.DURU_HEADING={subscribe,check,get state(){return {on:headingOn,...heading};},set:setHeading};
+
+  // Stop everything when the page is hidden; nothing measures in the background.
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){stop('paused');setHeading(false);}});
+  window.addEventListener('pagehide',()=>{stop('paused');setHeading(false);});
+  setInterval(()=>{
+    if(running&&lastReading&&now()-lastReading>2000){lastReading=0;clear('stale');}
+    if(headingOn&&heading.value!==null&&now()-heading.at>2000){heading={...heading,value:null,status:'stale'};paintButton();publish();}
+  },500);
 })();
 </script>
 </body></html>

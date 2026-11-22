@@ -116,3 +116,36 @@ button,a,input{outline-offset:3px}button:focus-visible,a:focus-visible,input:foc
  .map-bottom{right:calc(var(--edge) + 150px)}
  .app:has(#mapHeader:not(.hidden)) .map-caution{display:none}
 }
+/* Walking guidance card (display only). Replaces the scope note and GPS strip while a route is shown. */
+.route-guide{position:absolute;z-index:8;left:385px;top:54px;width:min(420px,calc(100% - 470px));padding:10px 10px 8px 14px;background:#fff;border:1px solid #d8e4df;border-left:4px solid #286b9c;border-radius:14px;box-shadow:0 4px 18px #163a3018;color:#173c34}
+.route-guide[hidden]{display:none}
+.route-guide-top{display:flex;align-items:flex-start;gap:6px}
+.route-guide-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding-top:4px}
+.route-guide-main strong{font-size:16px;line-height:1.35;word-break:keep-all}
+.route-guide-main span{font-size:12.5px;line-height:1.5;color:#46625a;word-break:keep-all}
+.route-guide-actions{display:flex;gap:4px;flex-shrink:0}
+.route-guide-actions .icon-button{width:44px;height:44px;min-width:44px;box-shadow:none;border:1px solid #e1e9e6;font-size:20px}
+.route-guide-actions svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.route-guide-off{border-left-color:#c0582f}.route-guide-off .route-guide-main strong{color:#8a3a1c}
+.route-guide-steps{margin:8px 0 2px;padding:6px 0 0 20px;border-top:1px solid #e6ede9;max-height:34vh;overflow:auto;font-size:13px;line-height:1.7;color:#35524b}
+.route-guide-steps li{padding:2px 0}.route-guide-steps li span{color:#5d746d}.route-guide-steps li.done{color:#8a9893}.route-guide-steps li.current{font-weight:700;color:#14514a}
+.route-guide-note{margin:4px 0 0;font-size:11px;line-height:1.5;color:#55706a}
+.app:has(#routeGuide:not([hidden])) .map-caution,.app:has(#routeGuide:not([hidden])) .gps-banner{display:none}
+@media(max-width:720px),(max-height:550px) and (orientation:landscape){
+ .route-guide{left:var(--edge);top:var(--map-top,76px);width:calc(100% - 2*var(--edge) - 52px)}
+ .app:has(#mapHeader:not(.hidden)) .route-guide{width:calc(100% - 132px)}
+ .route-guide-main strong{font-size:15px}
+ .route-guide{max-height:calc(100dvh - var(--map-top,76px) - 92px - env(safe-area-inset-bottom));overflow:auto}
+ .route-guide-steps{max-height:none}
+}
+@media(max-width:359px){.route-guide-actions{gap:2px}.route-guide{padding-left:10px}.route-guide-main strong{font-size:14px}}
+@media(max-height:550px) and (orientation:landscape){
+ .app:has(#mapHeader) .route-guide{top:62px;width:min(380px,calc(100% - 200px))}
+ .app:has(#mapHeader) .route-guide{max-height:calc(100dvh - 62px - 70px - env(safe-area-inset-bottom))}
+}
+@media(max-width:420px){.route-guide-top{flex-direction:column;gap:4px}.route-guide-actions{align-self:flex-end}}
+/* Direction toggle: the arrow turns with the phone; amber while waiting for a usable reading. */
+.heading-toggle svg{transition:transform .15s linear}.heading-toggle svg path{fill:currentColor;fill-opacity:.18}
+.heading-toggle.active svg path{fill-opacity:1}.heading-toggle.heading-waiting{color:#9a5b12;border-color:#e8cf9f;background:#fff8ec}
+.route-guide-facing{font-size:13px;font-weight:650;color:#1f5a7a}
+@media(prefers-reduced-motion:reduce){.heading-toggle svg{transition:none}}
