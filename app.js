@@ -261,6 +261,12 @@
   let bannerTimer=0,bannerDismissed='';
   function updateBanner(d){
     const key=d.version+':'+d.type;if(bannerDismissed&&bannerDismissed===key)return;
+    banner.toggleAttribute('data-native',d.native===true);
+    $('updateClose').textContent=d.native?'나중에':'×';
+    $('updateClose').className=d.native?'secondary-button':'icon-button';
+    $('updateClose').setAttribute('aria-label',d.native?'나중에':'업데이트 안내 닫기');
+    $('updateReload').textContent=d.native?(d.actionLabel||'업데이트'):'지금 다시 열기';
+    $('updateReload').disabled=false;
     clearTimeout(bannerTimer);banner.classList.remove('hidden');banner.classList.toggle('update-failed',d.type==='OFFLINE_INSTALL_ERROR');
     const what=d.reason==='update'?'새 버전':d.reason==='manual'?'저장한 지도 확인':'지도 저장';
     $('updateReload').classList.add('hidden');$('updateProgress').hidden=d.type!=='OFFLINE_INSTALL_PROGRESS';
@@ -269,7 +275,11 @@
       $('updateTitle').textContent=d.reason==='update'?`새 버전 받는 중 · ${pct}%`:d.reason==='manual'?`저장한 지도 다시 확인 중 · ${pct}%`:`이 휴대폰에 지도 저장 중 · ${pct}%`;
       $('updateDetail').textContent=d.reason==='update'?`파일 ${d.doneFiles}/${d.totalFiles} · 지금 지도는 계속 쓸 수 있습니다.`:`파일 ${d.doneFiles}/${d.totalFiles} · 받는 동안에도 지도를 쓸 수 있습니다.`;
     }else if(d.type==='OFFLINE_INSTALL_READY'){
-      if(d.reason==='update'){$('updateTitle').textContent='새 버전 준비됨';$('updateDetail').textContent='다시 열면 적용됩니다. 지금 화면은 이전 버전으로 계속 쓸 수 있습니다.';$('updateReload').classList.remove('hidden');}
+      if(d.reason==='update'){
+        $('updateTitle').textContent=d.title||'새 버전 준비됨';
+        $('updateDetail').textContent=d.detail||'다시 열면 적용됩니다. 지금 화면은 이전 버전으로 계속 쓸 수 있습니다.';
+        $('updateReload').classList.remove('hidden');
+      }
       else{$('updateTitle').textContent=d.reason==='manual'?'저장한 지도 확인 완료':'지도 저장 완료';$('updateDetail').textContent='인터넷 없이도 이 주소에서 열 수 있습니다.';bannerTimer=setTimeout(()=>banner.classList.add('hidden'),6000);}
     }else{
       $('updateTitle').textContent=d.reason==='update'?'새 버전을 받지 못했습니다':`${what}에 실패했습니다`;
@@ -279,7 +289,7 @@
   }
   $('updateReload').onclick=()=>location.reload();
   $('updateClose').onclick=()=>{bannerDismissed=banner.dataset.key||'';clearTimeout(bannerTimer);banner.classList.add('hidden');};
-  window.DURU_UPDATE={show:updateBanner};
+  window.DURU_UPDATE={show:updateBanner,hide(){clearTimeout(bannerTimer);banner.classList.add('hidden');}};
   // Read-only hooks support deterministic verification of geographic rendering and local state.
   window.DURU={get state(){return {camera:{...camera},selected,pins:pins.map(p=>({...p})),gps:gps?{...gps}:null,center:(()=>{const ll=at(w/2,h/2);return {lon:ll[0],lat:ll[1]};})(),offlineReady,roads:roadCount,places:searchPlaces.length,railways:railCount,stations:(data.stations||[]).length,subwayEntrances:(data.subwayEntrances||[]).length};},project,unproject,fit,selectPlace,focusPoint(p,z=11){closePanel();fly(p,z);},redraw:requestDraw,resize,toast,escapeHtml,invalidateBase(){baseView=null;requestDraw();},addOverlay(overlay){overlays.push(overlay);baseView=null;requestDraw();}};
 })();

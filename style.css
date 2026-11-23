@@ -158,3 +158,18 @@ button,a,input{outline-offset:3px}button:focus-visible,a:focus-visible,input:foc
 .walk-data-row small{color:#6b7572}
 .walk-data-row .secondary-button,.walk-data-row .link-button{min-height:44px;padding:0 12px;font-size:13px}
 .walk-data-saved{font-size:12px;color:#1f6b4f;font-weight:650;margin-left:auto}
+
+/* Keep the Android update card clear of the right-side controls and active map tasks. */
+body:has(dialog[open]) .update-banner[data-native],
+.app:has(.route-guide:not([hidden]), #bottomPanel:not(.hidden), #search:focus) .update-banner[data-native]{display:none}
+.update-banner[data-native] .update-actions{flex-wrap:wrap}
+.update-banner[data-native] .update-actions button{min-height:44px;white-space:nowrap}
+@media(max-width:720px),(max-height:550px) and (orientation:landscape){
+ .update-banner[data-native]{left:var(--edge);right:72px;transform:none;width:auto}
+ .update-banner[data-native] .update-text,.update-banner[data-native] .update-actions{grid-column:1/-1}
+ .update-banner[data-native] .update-actions{grid-row:2;justify-content:flex-end}
+ .app:has(#mapHeader:not(.hidden)) .update-banner[data-native]{right:122px}
+}
+@media(max-height:550px) and (orientation:landscape){
+ .app:has(#mapHeader:not(.hidden)) .update-banner[data-native]{right:172px}
+}
