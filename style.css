@@ -173,3 +173,19 @@ body:has(dialog[open]) .update-banner[data-native],
 @media(max-height:550px) and (orientation:landscape){
  .app:has(#mapHeader:not(.hidden)) .update-banner[data-native]{right:172px}
 }
+
+#locate,#layers{flex-direction:column;gap:1px;line-height:1}
+#locate span,#layers span{font-size:9px;font-weight:700;white-space:nowrap}
+#locate svg,#layers svg{height:19px;width:19px}
+.layer-panel{max-height:65dvh;overflow:auto}
+.layer-panel #fit{margin:6px 0 12px}
+.offline-details{border-top:1px solid #dae5df;margin:14px 0;padding:4px 0}
+.offline-details summary{cursor:pointer;padding:13px 2px;font-weight:650}
+#nativeContentUpdate{background:#fff;border:1px solid #d8e5df;border-radius:16px;padding:16px}
+#nativeContentUpdate h3{margin:0 0 8px}
+#contentUpdateInfo{white-space:pre-line;line-height:1.6;margin:0 0 10px}
+#nativeContentUpdate .offline-details{margin:10px 0 0}
+#offlineProgress,#nativeUpdateProgress{width:100%;height:8px;accent-color:#17695c;margin-bottom:12px}
+.update-banner[data-native] #updateClose{width:auto;flex:0 0 auto;order:0;padding:0 12px;background:transparent;border:0}
+.update-banner[data-native] #updateReload{order:1;min-width:90px;flex:1}
+#routePlaceActions{margin:0 0 12px}

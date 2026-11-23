@@ -129,7 +129,7 @@
   let guide=null,progress=null,progressFix=null,guideDismissed=false;
   const guideCard=document.createElement('section');guideCard.id='routeGuide';guideCard.className='route-guide';guideCard.hidden=true;guideCard.setAttribute('aria-label','도보 경로 안내');
   guideCard.innerHTML=`<div class="route-guide-top"><div class="route-guide-main"><strong id="routeGuideNext" role="status"></strong><span id="routeGuideSub"></span><span id="routeGuideFacing" class="route-guide-facing" hidden></span></div>
-    <div class="route-guide-actions"><button id="routeGuideLocate" class="icon-button" aria-label="내 위치로 진행 상황 확인">${$('locate').innerHTML}</button><button id="routeGuideList" class="icon-button" aria-label="단계별 안내 목록" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button><button id="routeGuideClose" class="icon-button" aria-label="안내 닫기">×</button></div></div>
+    <div class="route-guide-actions"><button id="routeGuideLocate" class="icon-button" aria-label="내 위치로 진행 상황 확인">${$('locate').querySelector('svg').outerHTML}</button><button id="routeGuideList" class="icon-button" aria-label="단계별 안내 목록" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button><button id="routeGuideClose" class="icon-button" aria-label="안내 닫기">×</button></div></div>
     <ol id="routeGuideSteps" class="route-guide-steps" hidden></ol><p class="route-guide-note">참고 경로 · 현장 통행·안전 미확인 · 위치 버튼을 누를 때만 갱신</p>`;
   document.querySelector('.app').append(guideCard);
   function bearing(a,b){const r=Math.PI/180,y=Math.sin((b.lon-a.lon)*r)*Math.cos(b.lat*r),x=Math.cos(a.lat*r)*Math.sin(b.lat*r)-Math.sin(a.lat*r)*Math.cos(b.lat*r)*Math.cos((b.lon-a.lon)*r);return (Math.atan2(y,x)/r+360)%360;}
@@ -232,7 +232,7 @@
   try{rawZones=localStorage.getItem(KEY);zones=validZones(JSON.parse(rawZones||'[]'));}catch(e){storageError=e.message;}
   function invalidateRoute(){routeRun++;busy=false;result=null;resetGuide();}
   function persist(next){try{if(!sessionOnly)localStorage.setItem(KEY,JSON.stringify(next));zones=next;invalidateRoute();render();api.redraw();return true;}catch(_){status('회피 구역을 저장하지 못했습니다. 기존 구역을 유지합니다.');return false;}}
-  let candidate=null;
+  let candidate=null,quickGoal=null;
   function render(){
     const label=p=>p?`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)} · 선택점에서 도로까지 ${Math.round(p.offsetMeters)}m (연결 미확인)`:'미지정';
     $('routeStart').textContent='출발점: '+label(start);$('routeGoal').textContent='목적지: '+label(goal);
@@ -251,7 +251,7 @@
   }
   button.onclick=open;$('routeClose').onclick=()=>dialog.close();
   let chooseSeq=0;
-  async function choose(which,p=api.state.selected){
+  async function choose(which,p=api.state.selected,quick=false){
     if(!open())return;
     candidate=null;$('routeCandidate').hidden=true;const seq=++chooseSeq;
     if(!p){status('지도를 눌러 위치를 먼저 선택하세요.');return;}
@@ -266,18 +266,29 @@
     if(seq!==chooseSeq)return;
     const meters=nearest?.offsetMeters;
     if(!nearest){status(missing.length?missingMessage(missing):'40m 안에 계산 가능한 도로 후보를 찾지 못했습니다. 입구나 도로를 더 가까이 선택하세요.');return;}
-    candidate={which,node:{lat:nearest.lat,lon:nearest.lon,offsetMeters:nearest.offsetMeters,selected:nearest.selected}};
+    candidate={which,quick,node:{lat:nearest.lat,lon:nearest.lon,offsetMeters:nearest.offsetMeters,selected:nearest.selected}};
     $('routeCandidateText').textContent=`${which==='start'?'출발':'도착'} 도로 후보: 선택 위치에서 ${Math.round(meters)}m, ${nearest.lat.toFixed(5)}, ${nearest.lon.toFixed(5)}. 이 사이를 건널 수 있는지 직접 확인하세요. 건물·강·담장을 가로지르는 연결은 제공하지 않습니다.`;
     $('routeCandidate').hidden=false;status('후보 도로 지점을 확인한 뒤 사용을 눌러주세요.');return candidate;
   }
   $('routeSetStart').onclick=()=>choose('start');$('routeSetGoal').onclick=()=>choose('goal');
-  $('routeAccept').onclick=()=>{if(!candidate)return;if(candidate.node.gps&&!freshGps(candidate.node.gps)){status('GPS 후보가 오래됐습니다. 새로 수신하거나 직접 지정하세요.');return;}if(candidate.which==='start')start=candidate.node;else goal=candidate.node;candidate=null;invalidateRoute();$('routeCandidate').hidden=true;render();api.redraw();status('도로 지점을 지정했습니다. 출발점과 목적지를 지정한 뒤 계산하세요.');};
+  $('routeAccept').onclick=()=>{if(!candidate)return;if(candidate.node.gps&&!freshGps(candidate.node.gps)){status('GPS 후보가 오래됐습니다. 새로 수신하거나 직접 지정하세요.');return;}const picked=candidate;
+    if(picked.which==='start')start=picked.node;
+    else{goal=picked.node;quickGoal=picked.quick?goal:null;if(picked.quick)start=null;}
+    candidate=null;invalidateRoute();$('routeCandidate').hidden=true;render();api.redraw();
+    if(picked.quick&&picked.which==='goal'){
+      const gps=api.state.gps;
+      if(gps&&freshGps(gps))$('routeGps').click();
+      else{dialog.close();$('closePanel').click();api.toast('지도에서 출발할 곳을 누른 뒤 ‘여기서 출발’을 선택하세요.');}
+    }else if(picked.which==='start'&&quickGoal&&quickGoal===goal)calculate(true);
+    else status('도로 지점을 지정했습니다. 출발점과 목적지를 지정한 뒤 계산하세요.');
+  };
   $('routeGps').onclick=()=>{const gps=api.state.gps;if(!gps){status('GPS 수신 위치가 없습니다. 지도 화면의 위치 버튼으로 먼저 수신하세요.');return;}
     const age=gpsAge(gps);
     if(!freshGps(gps)){status('GPS가 5분보다 오래됐거나 오차가 40m를 넘습니다. 새로 수신하거나 지도에서 직접 선택하세요.');return;}
     choose('start',gps).then(picked=>{if(picked&&picked===candidate){picked.node.gps={...gps};$('routeCandidateText').textContent+=` GPS ${Math.floor(age/1000)}초 전 · 추정 오차 ${Math.round(gps.accuracy)}m. 현재 위치를 보장하지 않습니다.`;}});
   };
-  $('routeCalculate').onclick=()=>{
+  $('routeCalculate').onclick=()=>calculate(false);
+  function calculate(showOnMap){
     if(storageError||!start||!goal||busy)return;
     if(start.gps&&!freshGps(start.gps)){result=null;resetGuide();api.redraw();status('GPS 출발점이 오래됐습니다. 새로 수신하거나 지도에서 직접 지정하세요.');render();return;}
     const straight=core.distance(start,goal);
@@ -304,10 +315,12 @@
       if(e.message==='gps')status('GPS 출발점이 오래됐습니다. 새로 수신하거나 직접 지정하세요.');
       else status(e.message||'경로 자료를 처리하지 못했습니다.');
     }
-    busy=false;resetGuide();render();api.redraw();})();
-  };
+    busy=false;resetGuide();render();api.redraw();
+    if(showOnMap&&result?.status==='found'&&dialog.open){quickGoal=null;$('routeView').click();}
+    })();
+  }
   $('routeView').onclick=()=>{if(result?.status!=='found')return;dialog.close();renderGuide();api.focusPoint(start,14);api.toast('파란 선은 참고 경로입니다. 위쪽 안내 카드의 위치 버튼으로 진행 상황을 확인하세요.');};
-  $('routeClear').onclick=()=>{start=null;goal=null;chooseSeq++;invalidateRoute();candidate=null;$('routeCandidate').hidden=true;status('경로를 지웠습니다.');render();api.redraw();};
+  $('routeClear').onclick=()=>{start=null;goal=null;quickGoal=null;chooseSeq++;invalidateRoute();candidate=null;$('routeCandidate').hidden=true;status('경로를 지웠습니다.');render();api.redraw();};
   $('routeAddZone').onclick=()=>{if(storageError)return;const p=api.state.selected;if(!p){status('지도를 눌러 회피할 위치를 먼저 선택하세요.');return;}if(zones.length>=30){status('회피 구역은 30개까지 저장할 수 있습니다.');return;}
     const z={id:crypto.randomUUID(),lat:p.lat,lon:p.lon,radiusMeters:Number($('routeRadius').value),source:'manual',observedAt:Date.now()};
     if(persist([...zones,z]))status('직접 지정한 회피 구역을 저장했습니다. 경로를 다시 계산하세요.');
@@ -323,7 +336,7 @@
       // No walking data here (sea or outside Korea): say why instead of offering buttons that can only fail.
       row.classList.add('route-place-outside');row.innerHTML='<p class="route-place-note">이 위치 주변에는 도보 길 자료가 없습니다. 육지의 길 가까이를 선택하세요.</p>';
       $('panelBody').append(row);return;}
-    row.innerHTML='<button id="routePlaceStart" class="secondary-button">도보 출발점</button><button id="routePlaceGoal" class="secondary-button">도보 목적지</button>';$('panelBody').append(row);$('routePlaceStart').onclick=()=>choose('start');$('routePlaceGoal').onclick=()=>choose('goal');});
+    row.innerHTML='<button id="routePlaceGoal" class="primary-button">여기로 걷기</button><button id="routePlaceStart" class="secondary-button">여기서 출발</button>';$('panelBody').prepend(row);$('routePlaceStart').onclick=()=>choose('start');$('routePlaceGoal').onclick=()=>choose('goal',api.state.selected,true);});
   placeObserver.observe($('panelBody'),{childList:true});
   api.addOverlay({draw({ctx,screen,project}){
     const xy=p=>screen(project(p.lon,p.lat));ctx.save();

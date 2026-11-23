@@ -206,8 +206,15 @@
   $('search').addEventListener('input',search);$('search').addEventListener('keydown',e=>{if(e.key==='Enter'&&search.hits?.length){selectPlace(search.hits[0]);$('searchResults').classList.add('hidden');$('search').setAttribute('aria-expanded','false');$('search').blur();}if(e.key==='Escape'){$('searchResults').classList.add('hidden');$('search').setAttribute('aria-expanded','false');$('search').blur();}});
   $('clearSearch').onclick=()=>{$('search').value='';search();$('search').focus();};
   for(const b of document.querySelectorAll('[data-city]'))b.onclick=()=>selectPlace(anchors.find(p=>p.n===b.dataset.city));
-  $('zoomIn').onclick=()=>zoom(1);$('zoomOut').onclick=()=>zoom(-1);$('fit').onclick=fit;$('homeChip').onclick=()=>{closePanel();fit();};$('closePanel').onclick=closePanel;$('navMap').onclick=closePanel;$('navSaved').onclick=savedPanel;
-  $('layers').onclick=()=>$('layerPanel').classList.toggle('hidden');for(const id of ['showRoads','showRegions','showLabels','showFacilities','showRail'])$(id).onchange=requestDraw;
+  $('zoomIn').onclick=()=>zoom(1);$('zoomOut').onclick=()=>zoom(-1);$('fit').onclick=()=>{toggleTools(false);fit();};$('homeChip').onclick=()=>{closePanel();fit();};$('closePanel').onclick=closePanel;$('navMap').onclick=closePanel;$('navSaved').onclick=savedPanel;
+  function toggleTools(open){
+    $('layerPanel').classList.toggle('hidden',!open);
+    $('layers').setAttribute('aria-expanded',String(open));
+  }
+  $('layers').onclick=()=>toggleTools($('layerPanel').classList.contains('hidden'));
+  document.addEventListener('pointerdown',e=>{if(!e.target.closest('#layers,#layerPanel'))toggleTools(false);});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('layerPanel').classList.contains('hidden')){toggleTools(false);$('layers').focus();}});
+  for(const id of ['showRoads','showRegions','showLabels','showFacilities','showRail'])$(id).onchange=requestDraw;
   const pointers=new Map();let gesture=null,lastTap=0;
   canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,[e.offsetX,e.offsetY]);if(pointers.size===1)gesture={x:e.offsetX,y:e.offsetY,cx:camera.x,cy:camera.y,moved:false,time:performance.now()};else if(pointers.size===2){const a=[...pointers.values()];gesture={distance:Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]),z:camera.z,cx:camera.x,cy:camera.y,mx:(a[0][0]+a[1][0])/2,my:(a[0][1]+a[1][1])/2,moved:true};}canvas.style.cursor='grabbing';});
   canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId)||!gesture)return;pointers.set(e.pointerId,[e.offsetX,e.offsetY]);if(pointers.size===1&&!gesture.distance){const dx=e.offsetX-gesture.x,dy=e.offsetY-gesture.y;if(Math.hypot(dx,dy)>5)gesture.moved=true;const s=256*2**camera.z;camera.x=gesture.cx-dx/s;camera.y=gesture.cy-dy/s;}else if(pointers.size===2&&gesture.distance){const a=[...pointers.values()],d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);camera.z=clamp(gesture.z+Math.log2(d/Math.max(gesture.distance,1)),5,MAX_ZOOM);const s0=256*2**gesture.z,s1=256*2**camera.z;camera.x=gesture.cx+(gesture.mx-w/2)/s0-((a[0][0]+a[1][0])/2-w/2)/s1;camera.y=gesture.cy+(gesture.my-h/2)/s0-((a[0][1]+a[1][1])/2-h/2)/s1;}interact();requestDraw();});
@@ -238,9 +245,9 @@
     const apkInfo=document.createElement('p');apkInfo.className='small-note';apkInfo.textContent='안드로이드 8 이상용 직접 설치 파일입니다. 지도 자료가 앱에 포함되어 설치 뒤에는 로그인과 인터넷 연결 없이 실행할 수 있습니다. 기존 내 장소·계획은 각각 백업 후 앱에서 가져오세요.';
     $('downloadMap').before(apkLink,apkInfo);
   }
-  function updateOffline(){const el=$('statusPill');el.textContent=nativeApp?'오프라인 준비됨':standalone?'파일로 사용 중':offlineError?'저장 오류 확인':offlineReady?'오프라인 준비됨':navigator.onLine?'지도 저장하기':'저장 상태 확인';el.classList.toggle('ready',standalone||offlineReady);$('offlineState').textContent=offlineError|| (nativeApp?'✓ 지도와 앱 화면이 설치 파일에 포함되어 있습니다. 인터넷 연결과 로그인 없이 사용할 수 있습니다.':standalone?'이 파일에는 지도 자료가 모두 들어 있습니다. 파일을 보관하면 인터넷 없이 열 수 있습니다. 홈 화면 설치와 GPS는 브라우저에 따라 제한될 수 있습니다.':offlineReady?'✓ 이 기기에 지도와 앱 화면을 저장했습니다. 비행기 모드에서도 다시 열어 확인하세요.':'지도를 저장하면 인터넷이 끊겨도 이 주소에서 다시 열 수 있습니다.');$('cacheMap').disabled=standalone;$('cacheMap').textContent=standalone?'지도 자료가 파일에 포함되어 있습니다':offlineReady?'저장한 지도 다시 확인':'이 휴대폰에 지도 저장';}
+  function updateOffline(){const el=$('statusPill');el.textContent=nativeApp?'오프라인 준비됨':standalone?'파일로 사용 중':offlineError?'저장 오류 확인':offlineReady?'오프라인 준비됨':navigator.onLine?'지도 저장하기':'저장 상태 확인';el.classList.toggle('ready',standalone||offlineReady);$('offlineState').textContent=offlineError|| (nativeApp?'✓ 오프라인 지도 사용 가능':standalone?'이 파일에는 지도 자료가 모두 들어 있습니다. 파일을 보관하면 인터넷 없이 열 수 있습니다. 홈 화면 설치와 GPS는 브라우저에 따라 제한될 수 있습니다.':offlineReady?'✓ 이 기기에 지도와 앱 화면을 저장했습니다. 비행기 모드에서도 다시 열어 확인하세요.':'지도를 저장하면 인터넷이 끊겨도 이 주소에서 다시 열 수 있습니다.');$('cacheMap').disabled=standalone;$('cacheMap').textContent=standalone?'지도 자료가 파일에 포함되어 있습니다':offlineReady?'저장한 지도 다시 확인':'이 휴대폰에 지도 저장';}
   function showHelp(){updateOffline();$('helpDialog').showModal();updateStorageInfo();}
-  async function updateStorageInfo(){let el=$('storageInfo');if(!el){el=document.createElement('p');el.id='storageInfo';el.className='info-note';$('offlineState').after(el);}let text=nativeApp?'지도는 앱에 포함되어 있습니다. 앱 삭제·데이터 삭제 시 내 장소와 계획은 지워집니다.':'저장 지속성: 브라우저 데이터 삭제나 기기 상태에 따라 지도가 사라질 수 있습니다.';try{if(!nativeApp&&navigator.storage?.persisted)text=(await navigator.storage.persisted())?'브라우저 지속 저장: 허용됨. 직접 데이터 삭제 시에는 지도가 지워집니다.':'브라우저 지속 저장: 보장되지 않음. 별도 지도 파일과 백업도 보관하세요.';const ts=localStorage.getItem('duru-pins-last-backup');text+=' 마지막 내 장소 백업 파일 생성: '+(ts?new Date(Number(ts)).toLocaleString('ko-KR'):'없음');}catch(_){}el.textContent=text;}
+  async function updateStorageInfo(){let el=$('storageInfo');if(!el){el=document.createElement('p');el.id='storageInfo';el.className='info-note';$('exportPins').parentElement.after(el);}let text=nativeApp?'지도는 앱에 포함되어 있습니다. 앱 삭제·데이터 삭제 시 내 장소와 계획은 지워집니다.':'저장 지속성: 브라우저 데이터 삭제나 기기 상태에 따라 지도가 사라질 수 있습니다.';try{if(!nativeApp&&navigator.storage?.persisted)text=(await navigator.storage.persisted())?'브라우저 지속 저장: 허용됨. 직접 데이터 삭제 시에는 지도가 지워집니다.':'브라우저 지속 저장: 보장되지 않음. 별도 지도 파일과 백업도 보관하세요.';const ts=localStorage.getItem('duru-pins-last-backup');text+=' 마지막 내 장소 백업 파일 생성: '+(ts?new Date(Number(ts)).toLocaleString('ko-KR'):'없음');}catch(_){}el.textContent=text;}
   $('navOffline').onclick=showHelp;$('statusPill').onclick=showHelp;$('sources').onclick=()=>{showHelp();document.querySelector('.data-details').open=true;};$('closeHelp').onclick=()=>$('helpDialog').close();$('helpDialog').onclick=e=>{if(e.target===$('helpDialog'))$('helpDialog').close();};
   async function checkCache(){if(standalone){offlineReady=true;updateOffline();return;}if(!('serviceWorker'in navigator)||!isSecureContext){updateOffline();return;}try{const r=await navigator.serviceWorker.ready;const channel=new MessageChannel();channel.port1.onmessage=e=>{if(e.data?.type==='CACHE_STATUS'){offlineReady=!!e.data.ready;updateOffline();if(offlineReady&&navigator.storage?.persist)navigator.storage.persist().catch(()=>{});}};r.active?.postMessage({type:'STATUS'},[channel.port2]);}catch(_){} }
   async function saveOffline(){if(standalone)return;$('cacheMap').disabled=true;$('cacheMap').textContent='전국 지도를 저장하고 있습니다…';try{if(!('serviceWorker'in navigator))throw Error('이 브라우저는 오프라인 저장을 지원하지 않습니다. HTML 파일을 저장해주세요.');const setup=await workerSetup;if(!setup)throw Error(offlineError||'이 브라우저에서 지도 설치를 시작하지 못했습니다. 안드로이드 크롬에서 열거나 지도 HTML 파일을 저장하세요.');const reg=await waitForActive(setup);const result=await new Promise((resolve,reject)=>{const mc=new MessageChannel();const timer=setTimeout(()=>reject(Error('저장 시간이 오래 걸립니다. 연결 상태를 확인하고 다시 시도하세요.')),90000);mc.port1.onmessage=e=>{clearTimeout(timer);e.data.ok?resolve(e.data):reject(Error(e.data.error||'지도 저장에 실패했습니다.'));};reg.active.postMessage({type:'CACHE_ALL'},[mc.port2]);});offlineReady=true;offlineError='';updateOffline();toast('지도 저장 완료. 비행기 모드로 확인해보세요.');if(navigator.storage?.persist)navigator.storage.persist().catch(()=>{});}catch(e){showOfflineFailure(e.message);toast(e.message);}finally{$('cacheMap').disabled=false;}}
@@ -260,6 +267,14 @@
   $('toast').before(banner);
   let bannerTimer=0,bannerDismissed='';
   function updateBanner(d){
+    if(!nativeApp){
+      const progress=$('offlineProgress');
+      progress.hidden=d.type!=='OFFLINE_INSTALL_PROGRESS';
+      if(!progress.hidden){
+        progress.max=d.totalBytes||1;
+        if(d.totalBytes)progress.value=d.doneBytes;else progress.removeAttribute('value');
+      }
+    }
     const key=d.version+':'+d.type;if(bannerDismissed&&bannerDismissed===key)return;
     banner.toggleAttribute('data-native',d.native===true);
     $('updateClose').textContent=d.native?'나중에':'×';
