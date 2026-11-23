@@ -2,6 +2,6 @@
 
 자동 생성된 배포 파일입니다. 직접 수정하지 마세요. 원본은 비공개 저장소에 있습니다.
 
-버전 1.5.6 · 원본 커밋 335fb88 · 오프라인 캐시 duru-502f32c1f406
+버전 1.5.7 · 원본 커밋 0df3ea7 · 오프라인 캐시 duru-c000c72673ae
 
 지도 자료 © OpenStreetMap contributors (ODbL 1.0), Natural Earth (Public Domain).

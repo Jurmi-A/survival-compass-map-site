@@ -88,6 +88,7 @@
         failures.set(index.tileRegion[key],entry.reason);
       }
     });
+    if(!native&&!standalone&&need.length&&loaded.length)resetDetail();
     const sig=loadedKeys.join(';');
     const graph=lastGraph?.sig===sig?lastGraph.graph:core.buildGraph(loaded);
     lastGraph={sig,graph};
@@ -103,7 +104,7 @@
   dialog.innerHTML=`<div class="modal-card"><div class="modal-header"><div><span class="eyebrow">${standalone?'파일에 포함된 서울 자료':'전국 · 인터넷 없이도 계산'}</span><h2>도보 길찾기</h2></div><button id="routeClose" class="icon-button" aria-label="길찾기 닫기">×</button></div>
     <p class="routing-caution">거리 기준 참고 경로입니다. 현장 통행·안전 여부는 확인되지 않았습니다. 공식 대피 지시와 현장 통제를 우선하세요. 차량·휠체어 길찾기는 지원하지 않습니다.</p>
     <p class="small-note">자료: © OpenStreetMap contributors · ${esc(index.osmTimestamp||'시각 모름')} · ODbL. ${native?'앱에 전국 도보 자료가 들어 있습니다.':standalone?'이 HTML에는 서울 자료만 들어 있습니다.':'지역 자료를 오프라인 메뉴에서 미리 받을 수 있습니다.'} 직선 ${MAX_ROUTE/1000}km까지 계산합니다.</p>
-    <p class="small-note">지도에서 도로 지점을 누른 뒤 장소 정보의 ‘도보 출발점’ 또는 ‘도보 목적지’를 선택하세요. 아래 버튼은 현재 선택한 위치를 사용합니다.</p>
+    <p class="small-note">지도에서 도로 지점을 누른 뒤 장소 정보의 ‘여기서 출발’ 또는 ‘여기로 걷기’를 선택하세요. 아래 버튼은 현재 선택한 위치를 사용합니다.</p>
     <div class="route-endpoints"><p id="routeStart"></p><p id="routeGoal"></p></div>
     <div class="action-row"><button id="routeSetStart" class="secondary-button">선택 위치 → 출발점</button><button id="routeSetGoal" class="secondary-button">선택 위치 → 목적지</button></div>
     <button id="routeGps" class="secondary-button wide">수신한 GPS로 출발점 후보 찾기</button>
@@ -338,6 +339,88 @@
       $('panelBody').append(row);return;}
     row.innerHTML='<button id="routePlaceGoal" class="primary-button">여기로 걷기</button><button id="routePlaceStart" class="secondary-button">여기서 출발</button>';$('panelBody').prepend(row);$('routePlaceStart').onclick=()=>choose('start');$('routePlaceGoal').onclick=()=>choose('goal',api.state.selected,true);});
   placeObserver.observe($('panelBody'),{childList:true});
+  // Use the same verified edges as routing, including endpoints owned by adjacent tiles.
+  // Quantized geographic bounds let small pans reuse a path without rebuilding it.
+  const pathScale=2**20;
+  let detailKey='',detailTimer=0,detailGeneration=0,detailView=null;
+  const detailHint=$('walkDetailHint');
+  function resetDetail(){
+    clearTimeout(detailTimer);
+    detailGeneration++;
+    detailKey='';
+    detailView=null;
+    api.invalidateBase();
+  }
+  async function loadDetail(bounds,generation){
+    const [west,south,east,north]=bounds;
+    const visible=core.tilesFor({lat:south,lon:west},{lat:north,lon:east},0);
+    const keys=core.withEndpoints(visible,index.tileDependencies).filter(availableTile);
+    const saved=native||standalone?null:await savedSet();
+    if(generation!==detailGeneration)return;
+    const usable=keys.filter(key=>!saved||saved.has(index.tileRegion[key])||packs.has(index.tileRegion[key]));
+    const decoded=await Promise.allSettled(usable.map(tile));
+    if(generation!==detailGeneration)return;
+    const local=new Map();
+    decoded.forEach(r=>{if(r.status==='fulfilled'&&r.value)local.set(r.value.key,r.value);});
+    const anchor=api.project(west,north);
+    const path=new Path2D();
+    function point(lat,lon,first){
+      const xy=api.project(lon/1e5,lat/1e5);
+      const x=(xy[0]-anchor[0])*pathScale,y=(xy[1]-anchor[1])*pathScale;
+      if(first)path.moveTo(x,y);else path.lineTo(x,y);
+    }
+    let edges=0,lastYield=performance.now();
+    for(const t of local.values()){
+      for(let i=0;i<t.from.length;i++){
+        const target=t.toTile[i]?local.get(t.toTile[i]):t;
+        if(!target)continue;
+        const from=t.from[i],to=t.toLocal[i],a=t.vlat[from],b=t.vlon[from],c=target.vlat[to],d=target.vlon[to];
+        let ymin=Math.min(a,c),ymax=Math.max(a,c),xmin=Math.min(b,d),xmax=Math.max(b,d);
+        for(let j=t.gs[i];j<t.gs[i+1];j++){
+          const lat=t.geo[2*j],lon=t.geo[2*j+1];
+          ymin=Math.min(ymin,lat);ymax=Math.max(ymax,lat);xmin=Math.min(xmin,lon);xmax=Math.max(xmax,lon);
+        }
+        if(xmin>east*1e5||xmax<west*1e5||ymin>north*1e5||ymax<south*1e5)continue;
+        point(a,b,true);
+        for(let j=t.gs[i];j<t.gs[i+1];j++)point(t.geo[2*j],t.geo[2*j+1],false);
+        point(c,d,false);edges++;
+      }
+      if(performance.now()-lastYield>12){
+        await new Promise(resolve=>setTimeout(resolve,0));
+        if(generation!==detailGeneration)return;
+        lastYield=performance.now();
+      }
+    }
+    detailView={path,anchor,edges};
+    const incomplete=local.size<keys.length;
+    detailHint.textContent=incomplete&&!native&&!standalone?'일부 지역 자료가 없습니다. 오프라인 메뉴에서 해당 시·도를 받아 주세요.':
+      incomplete?'일부 보행로를 읽지 못했습니다.':edges?'이 화면에 도보 자료의 길을 표시했습니다.':
+      standalone?'이 파일에는 서울 도보 자료만 들어 있습니다.':'이 화면에 표시할 보행로가 없습니다.';
+    api.invalidateBase();
+  }
+  api.addOverlay({drawWalkingRoads({ctx,screen,camera,bl,tr}){
+    if(!supported||camera.z<13||!$('showWalkingRoads').checked){
+      if(detailKey)resetDetail();
+      detailHint.textContent=!supported?'보행로를 표시하려면 브라우저를 업데이트하세요.':'동네를 확대하면 보행로를 표시합니다.';
+      return;
+    }
+    const bounds=[Math.floor(bl[0]*100)/100,Math.floor(bl[1]*100)/100,Math.ceil(tr[0]*100)/100,Math.ceil(tr[1]*100)/100];
+    const key=bounds.join(',');
+    if(key!==detailKey){
+      detailKey=key;
+      const generation=++detailGeneration;
+      clearTimeout(detailTimer);
+      detailHint.textContent='주변 보행로를 불러오는 중…';
+      detailTimer=setTimeout(()=>loadDetail(bounds,generation).catch(()=>{
+        if(generation===detailGeneration)detailHint.textContent='보행로 자료를 불러오지 못했습니다.';
+      }),120);
+    }
+    if(!detailView?.edges)return;
+    const origin=screen(detailView.anchor),scale=256*2**camera.z/pathScale;
+    ctx.save();ctx.translate(origin[0],origin[1]);ctx.scale(scale,scale);
+    ctx.strokeStyle='#a8b7a8';ctx.lineWidth=(camera.z>=15?1.4:0.85)/scale;
+    ctx.stroke(detailView.path);ctx.restore();
+  }});
   api.addOverlay({draw({ctx,screen,project}){
     const xy=p=>screen(project(p.lon,p.lat));ctx.save();
     for(const z of zones){const p=xy(z),east=xy({...z,lon:z.lon+z.radiusMeters/(111320*Math.cos(z.lat*Math.PI/180))});ctx.beginPath();ctx.arc(...p,Math.abs(east[0]-p[0]),0,Math.PI*2);ctx.fillStyle='#b45b3833';ctx.strokeStyle='#a34e32';ctx.lineWidth=2;ctx.fill();ctx.stroke();}
@@ -356,9 +439,9 @@
     if(native){$('walkDataList').innerHTML='';return;}
     $('walkDataList').innerHTML=index.regions.map(r=>`<div class="walk-data-row"><span>${esc(r.label)} <small>${(r.bytes/1e6).toFixed(1)}MB</small></span>${saved.has(r.id)?`<span class="walk-data-saved">저장됨</span><button class="link-button" data-walk-remove="${r.id}">삭제</button>`:`<button class="secondary-button" data-walk-save="${r.id}">받기</button>`}</div>`).join('');
     for(const b of walkBox.querySelectorAll('[data-walk-save]'))b.onclick=async()=>{const r=regionById.get(b.dataset.walkSave);b.disabled=true;b.textContent='받는 중…';
-      try{await webPack(r,true);api.toast(`${r.label} 도보 자료를 저장했습니다.`);}
+      try{await webPack(r,true);resetDetail();api.toast(`${r.label} 도보 자료를 저장했습니다.`);}
       catch(e){api.toast(e.message||`${r.label} 도보 자료를 받지 못했습니다.`);}renderWalkData();};
-    for(const b of walkBox.querySelectorAll('[data-walk-remove]'))b.onclick=async()=>{const r=regionById.get(b.dataset.walkRemove);try{await (await caches.open(WALK_CACHE)).delete(fileUrl(r));}catch(_){}packs.delete(r.id);for(const k of [...tiles.keys()])if(index.tileRegion[k]===r.id)tiles.delete(k);lastGraph=null;renderWalkData();};
+    for(const b of walkBox.querySelectorAll('[data-walk-remove]'))b.onclick=async()=>{const r=regionById.get(b.dataset.walkRemove);try{await (await caches.open(WALK_CACHE)).delete(fileUrl(r));}catch(_){}packs.delete(r.id);for(const k of [...tiles.keys()])if(index.tileRegion[k]===r.id)tiles.delete(k);lastGraph=null;resetDetail();renderWalkData();};
   }
   if(standalone){
     $('walkDataNote').textContent='이 HTML 파일에는 전국 바탕 지도와 서울 도보 자료가 들어 있습니다. 다른 지역의 도보 길찾기는 앱이나 저장한 웹 지도에서 사용하세요.';
@@ -368,5 +451,5 @@
     $('navOffline')?.addEventListener('click',()=>setTimeout(renderWalkData,0));
   }
   render();
-  window.DURU_ROUTING={open,choose,get state(){return {start,goal,result,guide:guide&&{total:guide.total,legs:guide.legs.map(l=>({word:l.word,where:l.where,from:l.from,len:l.len}))},progress,zones:zones.map(z=>({...z})),busy,loadedRegions:[...packs.keys()],tilesLoaded:tiles.size};},regions:index.regions,WALK_CACHE};
+  window.DURU_ROUTING={open,choose,get state(){return {start,goal,result,guide:guide&&{total:guide.total,legs:guide.legs.map(l=>({word:l.word,where:l.where,from:l.from,len:l.len}))},progress,zones:zones.map(z=>({...z})),busy,detailEdges:detailView?.edges||0,loadedRegions:[...packs.keys()],tilesLoaded:tiles.size};},regions:index.regions,WALK_CACHE};
 })();

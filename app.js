@@ -125,6 +125,7 @@
     shape(land,'#f6f4e9','#95b2a6',1.05);
     if($('showRegions').checked){ctx.setLineDash([3,4]);shape(boundaries,null,'#bdc4b3',.8);ctx.setLineDash([]);}
     if(camera.z>=7.5){ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle='#9ec5c0';ctx.lineWidth=camera.z<10?1:1.6;ctx.beginPath();for(const r of rivers)if(roadVisible(r))linePath(r.xy);ctx.stroke();}
+    for(const overlay of overlays)overlay.drawWalkingRoads?.({ctx,screen,camera,bl,tr});
     const zf=clamp((camera.z-4)/3,.7,1.8);
     const roadLabels=[];
     if($('showRoads').checked){
@@ -167,7 +168,7 @@
   }
   function interact(){interacting=true;clearTimeout(settleTimer);settleTimer=setTimeout(()=>{interacting=false;requestDraw();},160);}
   function draw(){
-    const key=[w,h,dpr,...['showRoads','showRegions','showLabels','showFacilities','showRail'].map(id=>$(id).checked)].join();
+    const key=[w,h,dpr,...['showRoads','showRegions','showLabels','showFacilities','showRail','showWalkingRoads'].map(id=>$(id).checked)].join();
     // The cached map extends beyond the screen so dragging and pinching reveal real map, not blank edges.
     const margin=Math.max(.15,Math.min(.5,(Math.sqrt(8e6/Math.max(1,canvas.width*canvas.height))-1)/2)),mx=Math.round(w*margin),my=Math.round(h*margin);
     const s1=256*2**camera.z,stale=!baseView||baseView.key!==key||Math.abs((baseView.x-camera.x)*s1)>baseView.mx*.9||Math.abs((baseView.y-camera.y)*s1)>baseView.my*.9||Math.abs(camera.z-baseView.z)>1;
@@ -214,7 +215,7 @@
   $('layers').onclick=()=>toggleTools($('layerPanel').classList.contains('hidden'));
   document.addEventListener('pointerdown',e=>{if(!e.target.closest('#layers,#layerPanel'))toggleTools(false);});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('layerPanel').classList.contains('hidden')){toggleTools(false);$('layers').focus();}});
-  for(const id of ['showRoads','showRegions','showLabels','showFacilities','showRail'])$(id).onchange=requestDraw;
+  for(const id of ['showRoads','showRegions','showLabels','showFacilities','showRail','showWalkingRoads'])$(id).onchange=requestDraw;
   const pointers=new Map();let gesture=null,lastTap=0;
   canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,[e.offsetX,e.offsetY]);if(pointers.size===1)gesture={x:e.offsetX,y:e.offsetY,cx:camera.x,cy:camera.y,moved:false,time:performance.now()};else if(pointers.size===2){const a=[...pointers.values()];gesture={distance:Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]),z:camera.z,cx:camera.x,cy:camera.y,mx:(a[0][0]+a[1][0])/2,my:(a[0][1]+a[1][1])/2,moved:true};}canvas.style.cursor='grabbing';});
   canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId)||!gesture)return;pointers.set(e.pointerId,[e.offsetX,e.offsetY]);if(pointers.size===1&&!gesture.distance){const dx=e.offsetX-gesture.x,dy=e.offsetY-gesture.y;if(Math.hypot(dx,dy)>5)gesture.moved=true;const s=256*2**camera.z;camera.x=gesture.cx-dx/s;camera.y=gesture.cy-dy/s;}else if(pointers.size===2&&gesture.distance){const a=[...pointers.values()],d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);camera.z=clamp(gesture.z+Math.log2(d/Math.max(gesture.distance,1)),5,MAX_ZOOM);const s0=256*2**gesture.z,s1=256*2**camera.z;camera.x=gesture.cx+(gesture.mx-w/2)/s0-((a[0][0]+a[1][0])/2-w/2)/s1;camera.y=gesture.cy+(gesture.my-h/2)/s0-((a[0][1]+a[1][1])/2-h/2)/s1;}interact();requestDraw();});
