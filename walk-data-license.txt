@@ -1,0 +1,23 @@
+Nationwide walking network: © OpenStreetMap contributors.
+Source snapshot: 2026-11-13T21:22:20Z
+Attribution: https://www.openstreetmap.org/copyright
+License: Open Database License 1.0, https://opendatacommons.org/licenses/odbl/1-0/
+The derived network is provided in these downloadable files.
+Index: walk-index.js
+walk-busan-cdb7d3e80d52.js
+walk-chungbuk-21664e51377c.js
+walk-chungnam-02bd6b1e189d.js
+walk-daegu-c1b6cdf9972d.js
+walk-daejeon-efca3127f96f.js
+walk-gangwon-125b7d89d398.js
+walk-gwangju-5e8f5bd5d849.js
+walk-gyeongbuk-54189a152bcf.js
+walk-gyeonggi-65f6fbb0c27e.js
+walk-gyeongnam-8c6c31916be0.js
+walk-incheon-e0c1deb1bff0.js
+walk-jeju-cfea4e450aaf.js
+walk-jeonbuk-bc417f22b7a1.js
+walk-jeonnam-a8595905201f.js
+walk-sejong-ccb615f290aa.js
+walk-seoul-2127719cc481.js
+walk-ulsan-78bf90e07556.js
