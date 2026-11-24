@@ -113,24 +113,56 @@
   function linePath(xy){const s=256*2**camera.z,ox=w/2-camera.x*s,oy=h/2-camera.y*s,n=xy.length;let lx=xy[0]*s+ox,ly=xy[1]*s+oy;ctx.moveTo(lx,ly);for(let i=2;i<n;i+=2){const x=xy[i]*s+ox,y=xy[i+1]*s+oy;if(i===n-2||Math.abs(x-lx)+Math.abs(y-ly)>=1.2){ctx.lineTo(x,y);lx=x;ly=y;}}}
   function inView(xy,margin=70){const p=screen(xy);return p[0]>-margin&&p[0]<w+margin&&p[1]>-margin&&p[1]<h+margin;}
   function roadVisible(r){const s=256*2**camera.z,dx=(w/2+100)/s,dy=(h/2+100)/s;return r.b[2]>camera.x-dx&&r.b[0]<camera.x+dx&&r.b[3]>camera.y-dy&&r.b[1]<camera.y+dy;}
-  function textLabel(text,x,y,size,color,weight='500') {ctx.font=`${weight} ${size}px system-ui, sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';ctx.lineWidth=3.8;ctx.strokeStyle='#f8f7ed';ctx.strokeText(text,x,y);ctx.fillStyle=color;ctx.fillText(text,x,y);}
+  function textLabel(text,x,y,size,color,weight='500') {ctx.font=`${weight} ${size}px system-ui, sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';ctx.lineWidth=3.8;ctx.strokeStyle='#ffffff';ctx.strokeText(text,x,y);ctx.fillStyle=color;ctx.fillText(text,x,y);}
+  let cardPlaces=[];
+  function updatePlaceCards(visible){
+    const pointInFrame=p=>{
+      const pos=screen(p.xy);
+      return Math.abs(pos[0]-w/2)<canvas.clientWidth/2&&Math.abs(pos[1]-h/2)<canvas.clientHeight/2;
+    };
+    const candidates=visible.filter(pointInFrame);
+    if(!candidates.length&&$('showLabels').checked){
+      for(const p of places){
+        if(camera.z>=p.minZ&&pointInFrame(p))candidates.push(p);
+        if(candidates.length>=24)break;
+      }
+    }
+    const dist=p=>Math.hypot(p.xy[0]-camera.x,p.xy[1]-camera.y);
+    const next=candidates.sort((a,b)=>dist(a)-dist(b)).slice(0,8);
+    if(next.length===cardPlaces.length&&next.every((p,i)=>p===cardPlaces[i]))return;
+    cardPlaces=next;
+    const strip=$('mapPlaces');
+    strip.replaceChildren(...next.map(p=>{
+      const card=document.createElement('button');
+      const kind=facilityKinds[p.kind];
+      const mark=document.createElement('span');mark.className='card-mark';
+      mark.textContent=kind?kind[2]:'⌖';if(kind)mark.style.color=kind[1];
+      mark.setAttribute('aria-hidden','true');
+      const title=document.createElement('strong');title.textContent=p.label||p.n;
+      const type=document.createElement('small');type.textContent=kind?p.type+' · 운영 미확인':p.type;
+      card.append(mark,title,type);
+      card.onclick=()=>selectPlace(p);
+      return card;
+    }));
+    strip.scrollLeft=0;
+  }
   function drawBase(){
-    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#deebe7';ctx.fillRect(0,0,w,h);
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#a6ddf4';ctx.fillRect(0,0,w,h);
     // Geographic grid is decorative; all map features use geographic coordinates.
-    ctx.strokeStyle='rgba(86,128,118,.07)';ctx.lineWidth=1;
+    ctx.strokeStyle='rgba(86,128,118,.025)';ctx.lineWidth=1;
     const step=camera.z<7?2:camera.z<9?1:.25;
     const bl=at(0,h),tr=at(w,0);
     for(let lon=Math.floor(bl[0]/step)*step;lon<tr[0];lon+=step){const x=screen(project(lon,36))[0];ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
     for(let lat=Math.floor(bl[1]/step)*step;lat<tr[1];lat+=step){const y=screen(project(127,lat))[1];ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
-    shape(land,'#f6f4e9','#95b2a6',1.05);
+    shape(land,'#f3f6ee','#9bc6ba',1.05);
     if($('showRegions').checked){ctx.setLineDash([3,4]);shape(boundaries,null,'#bdc4b3',.8);ctx.setLineDash([]);}
-    if(camera.z>=7.5){ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle='#9ec5c0';ctx.lineWidth=camera.z<10?1:1.6;ctx.beginPath();for(const r of rivers)if(roadVisible(r))linePath(r.xy);ctx.stroke();}
+    if(camera.z>=7.5){ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle='#78c1e6';ctx.lineWidth=camera.z<10?1:1.6;ctx.beginPath();for(const r of rivers)if(roadVisible(r))linePath(r.xy);ctx.stroke();}
     for(const overlay of overlays)overlay.drawWalkingRoads?.({ctx,screen,camera,bl,tr});
     const zf=clamp((camera.z-4)/3,.7,1.8);
     const roadLabels=[];
     if($('showRoads').checked){
       // [class, color, width, minimum zoom]; minor classes first so major roads paint on top.
-      const styles=[[4,'#e6dcc0',.8,10],[3,'#e0d3a6',1,8],[2,'#ddd1aa',camera.z<7?.55:1.2,0],[1,'#c1b783',camera.z<7?.7:1.5,0],[0,'#d2a061',camera.z<7?.95:2.1,0]];
+      const styles=[[4,'#d8dbe1',.8,10],[3,'#c8cedb',1,8],[2,'#bdc4d5',camera.z<7?.55:1.2,0],[1,'#9daac5',camera.z<7?.7:1.5,0],[0,'#d7a558',camera.z<7?.95:2.1,0]];
       ctx.lineJoin='round';ctx.lineCap='round';
       for(const [k,color,width,minZ] of styles){if(camera.z<minZ)continue;ctx.lineWidth=width*zf*(k>=3&&camera.z>=11?1.4:1);ctx.strokeStyle=color;ctx.beginPath();for(const r of roadClasses[k])if(roadVisible(r))linePath(r.xy);ctx.stroke();}
       if(camera.z>=9){const maxK=camera.z>=11?4:camera.z>=10?3:2,s=256*2**camera.z;let count=0;const used=[];for(let k=0;k<=maxK&&count<=35*labelScale;k++)for(const r of roadClasses[k]){if(count>35*labelScale)break;if(!r.n||r.xy.length<8||!roadVisible(r))continue;const m=Math.floor(r.xy.length/4)*2,p=[(r.xy[m]-camera.x)*s+w/2,(r.xy[m+1]-camera.y)*s+h/2];if(p[0]<50||p[0]>w-50||p[1]<140||p[1]>h-160||used.some(a=>Math.hypot(a[0]-p[0],a[1]-p[1])<90))continue;roadLabels.push([r.n,p]);used.push(p);count++;}}
@@ -140,13 +172,14 @@
       if(camera.z>=10.5){ctx.setLineDash([3,4]);ctx.strokeStyle='rgba(110,116,124,.55)';ctx.lineWidth=1.2;ctx.beginPath();for(const r of visible)if(r.tunnel&&(r.k!==1||camera.z>=11))linePath(r.xy);ctx.stroke();ctx.setLineDash([]);}
       const surface=visible.filter(r=>!r.tunnel&&(r.k!==1||camera.z>=10));
       ctx.strokeStyle='#6c7177';ctx.lineWidth=detail?2.4:1;ctx.beginPath();for(const r of surface)linePath(r.xy);ctx.stroke();
-      if(detail){ctx.setLineDash([7,7]);ctx.strokeStyle='#f6f4e9';ctx.lineWidth=1.2;ctx.beginPath();for(const r of surface)linePath(r.xy);ctx.stroke();ctx.setLineDash([]);}
+      if(detail){ctx.setLineDash([7,7]);ctx.strokeStyle='#f3f6ee';ctx.lineWidth=1.2;ctx.beginPath();for(const r of surface)linePath(r.xy);ctx.stroke();ctx.setLineDash([]);}
       if(camera.z>=13){ctx.strokeStyle='#3b4047';ctx.lineWidth=1.6;ctx.beginPath();for(const c of railCrossings){if(!inView(c.xy,10))continue;const p=screen(c.xy),r=c.pedestrian?3:4;ctx.moveTo(p[0]-r,p[1]-r);ctx.lineTo(p[0]+r,p[1]+r);ctx.moveTo(p[0]+r,p[1]-r);ctx.lineTo(p[0]-r,p[1]+r);}ctx.stroke();}
     }
     // Labels reserve measured boxes so place and facility names never overlap each other.
     const boxes=[];
     const fits=(text,x,y,size,weight)=>{ctx.font=`${weight} ${size}px system-ui, sans-serif`;const bw=ctx.measureText(text).width/2+4,bh=size/2+3;if(boxes.some(q=>Math.abs(q[0]-x)<bw+q[2]&&Math.abs(q[1]-y)<bh+q[3]))return false;boxes.push([x,y,bw,bh]);return true;};
     const big=camera.z>=12.5,visibleFac=camera.z>=10.5?facilities.filter(f=>camera.z>=f.minZ&&facilityOn(f)&&inView(f.xy,20)).sort((a,b)=>a.rank-b.rank):[],showFac=visibleFac.length>0;
+    if(!interacting)updatePlaceCards(visibleFac);
     const exitSpots=[];
     for(const f of visibleFac){const pos=screen(f.xy),kind=facilityKinds[f.kind];
       // Subway exits are small numbered squares; exits drawn on top of each other are skipped to keep stations readable.
@@ -155,7 +188,7 @@
     if($('showLabels').checked){
       let count=0;
       for(const p of places){if(camera.z<p.minZ||!inView(p.xy))continue;const a=p.rank===0,pos=screen(p.xy),size=a?13:p.rank>=3?10:11,weight=a?'650':'500';if(camera.z<8&&!a&&boxes.some(q=>Math.hypot(q[0]-pos[0],q[1]-pos[1]+13)<60))continue;if(!fits(p.n,pos[0],pos[1]-13,size,weight))continue;
-        ctx.beginPath();ctx.arc(pos[0],pos[1],a?3:2,0,Math.PI*2);ctx.fillStyle=a?'#3c665b':'#849684';ctx.fill();textLabel(p.n,pos[0],pos[1]-13,size,a?'#2e5146':p.rank>=3?'#6b7f72':'#5b7466',weight);
+        ctx.beginPath();ctx.arc(pos[0],pos[1],a?3:2,0,Math.PI*2);ctx.fillStyle=a?'#3c665b':'#849684';ctx.fill();textLabel(p.n,pos[0],pos[1]-13,size,a?'#203145':p.rank>=3?'#56675f':'#435467',weight);
         if(++count>140*labelScale)break;
       }
       if(camera.z<8.3) for(const r of regions){const p=screen(project(r[1],r[2])),text=r[0].replace('특별자치도',''),size=camera.z<6.2?11:13;if(fits(text,p[0],p[1],size,'600'))textLabel(text,p[0],p[1],size,'#879281','600');}
@@ -173,7 +206,7 @@
     const margin=Math.max(.15,Math.min(.5,(Math.sqrt(8e6/Math.max(1,canvas.width*canvas.height))-1)/2)),mx=Math.round(w*margin),my=Math.round(h*margin);
     const s1=256*2**camera.z,stale=!baseView||baseView.key!==key||Math.abs((baseView.x-camera.x)*s1)>baseView.mx*.9||Math.abs((baseView.y-camera.y)*s1)>baseView.my*.9||Math.abs(camera.z-baseView.z)>1;
     if(!interacting||stale){const bw=w+2*mx,bh=h+2*my,pw=Math.round(bw*dpr),ph=Math.round(bh*dpr);if(baseCanvas.width!==pw||baseCanvas.height!==ph){baseCanvas.width=pw;baseCanvas.height=ph;}const vw=w,vh=h;labelScale=(bw*bh)/(vw*vh);w=bw;h=bh;ctx=baseCtx;try{drawBase();}finally{ctx=mainCtx;w=vw;h=vh;}baseView={x:camera.x,y:camera.y,z:camera.z,key,mx,my};}
-    ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#deebe7';ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#a6ddf4';ctx.fillRect(0,0,canvas.width,canvas.height);
     const k=2**(camera.z-baseView.z);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.save();ctx.translate(w/2+(baseView.x-camera.x)*s1,h/2+(baseView.y-camera.y)*s1);ctx.scale(k,k);ctx.drawImage(baseCanvas,-w/2-baseView.mx,-h/2-baseView.my,w+2*baseView.mx,h+2*baseView.my);ctx.restore();
     for(const overlay of overlays)overlay.draw?.({ctx,screen,project,camera,w,h});
     for(const pin of pins) drawMarker(pin,pin.kind==='caution'?'#a64332':pin.kind==='meeting'?'#5066a0':'#db804c',false);
