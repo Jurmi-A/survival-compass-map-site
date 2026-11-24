@@ -299,6 +299,11 @@
   const banner=document.createElement('div');banner.id='updateBanner';banner.className='update-banner hidden';banner.setAttribute('role','status');banner.setAttribute('aria-live','polite');
   banner.innerHTML='<div class="update-text"><strong id="updateTitle"></strong><span id="updateDetail"></span></div><progress id="updateProgress" max="100" value="0"></progress><div class="update-actions"><button id="updateReload" class="primary-button hidden">지금 다시 열기</button><button id="updateClose" class="icon-button" aria-label="업데이트 안내 닫기">×</button></div>';
   $('toast').before(banner);
+  new ResizeObserver(()=>{
+    const box=banner.getBoundingClientRect();
+    const clearance=box.height?Math.ceil(document.querySelector('.app').getBoundingClientRect().bottom-box.top)+8:0;
+    $('mapPlaces').style.setProperty('--banner-clearance',clearance+'px');
+  }).observe(banner);
   let bannerTimer=0,bannerDismissed='';
   function updateBanner(d){
     if(!nativeApp){
