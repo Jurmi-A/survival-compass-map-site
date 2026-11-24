@@ -203,3 +203,8 @@ body:has(dialog[open]) .update-banner[data-native],
  .app:has(#mapHeader:not(.hidden)) .map-places{display:none}
 }
 @media(max-height:420px){.map-places{bottom:max(calc(var(--chrome-bottom) + 38px),var(--banner-clearance,0px));left:175px}}
+
+.map-places[hidden]{display:none}
+#placesClose{display:block;flex:0 0 auto;align-self:center;min-height:44px;padding:0 12px}
+#placeCards{display:flex;gap:8px;min-width:0;overflow-x:auto;scrollbar-width:none}
+#placeCards:empty::after{content:'이 화면에 표시할 장소가 없습니다';align-self:center;padding:8px;background:white;border-radius:8px}

@@ -24,6 +24,17 @@
   function setHeader(closed,remember=true){headerClosed=closed;$('mapHeader').classList.toggle('hidden',closed);$('mapHeader').inert=closed;$('headerExpand').classList.toggle('hidden',!closed);$('headerExpand').setAttribute('aria-expanded',String(!closed));if(closed){$('search').blur();$('searchResults').classList.add('hidden');$('search').setAttribute('aria-expanded','false');}if(remember)try{localStorage.setItem('survival-map-header',closed?'closed':'open');}catch(_){}headerLayout();}
   $('headerExpand').onclick=()=>{setHeader(false);$('search').focus();};
   $('headerCollapse').onclick=()=>{setHeader(true);$('headerExpand').focus();};
+  $('placesOpen').onclick=()=>{
+    setHeader(true,false);
+    $('mapPlaces').hidden=false;
+    $('placesOpen').setAttribute('aria-expanded','true');
+    $('placesClose').focus();
+  };
+  $('placesClose').onclick=()=>{
+    $('mapPlaces').hidden=true;
+    $('placesOpen').setAttribute('aria-expanded','false');
+    $('headerExpand').focus();
+  };
   const headerObserver=new ResizeObserver(()=>headerLayout());headerObserver.observe($('mapHeader'));window.addEventListener('resize',headerLayout);
   new MutationObserver(()=>{$('compactStatus').textContent=offlineReady?'오프라인 준비됨':'저장 미확인';}).observe($('statusPill'),{childList:true,subtree:true});
   $('routeOpen').onclick=()=>toast('도보 자료를 불러오지 못했습니다. 최신 지도 파일이나 앱을 다시 받아주세요.');
@@ -131,7 +142,7 @@
     const next=candidates.sort((a,b)=>dist(a)-dist(b)).slice(0,8);
     if(next.length===cardPlaces.length&&next.every((p,i)=>p===cardPlaces[i]))return;
     cardPlaces=next;
-    const strip=$('mapPlaces');
+    const strip=$('placeCards');
     strip.replaceChildren(...next.map(p=>{
       const card=document.createElement('button');
       const kind=facilityKinds[p.kind];
